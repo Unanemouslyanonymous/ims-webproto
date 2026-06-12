@@ -228,8 +228,17 @@
       const latencyTicks = this.tick - job.proc.arrived;
       const rThr = Math.min(1, (2 * idealTicks) / Math.max(1, latencyTicks));
 
-      const powerNorm = unit.spec.activeW / IMS.MAX_ACTIVE_W;
-      const rEff = t.affinity[unit.colKey] * (1 - 0.3 * powerNorm);
+      /* energy efficiency = perf-per-watt relative to the best column
+         currently available — recomputed live, so spec tweaks and
+         presets immediately change what "efficient" means */
+      let bestPerW = 0;
+      for (const k of IMS.RES_KEYS) {
+        const s = IMS.RES_SPECS[k];
+        bestPerW = Math.max(bestPerW, (s.baseSpeed * t.affinity[k]) / s.activeW);
+      }
+      const perW =
+        (unit.spec.baseSpeed * t.affinity[unit.colKey]) / unit.spec.activeW;
+      const rEff = bestPerW > 0 ? perW / bestPerW : 0;
 
       const rSec = job.proc.secure
         ? (job.violation ? -1 : 1)

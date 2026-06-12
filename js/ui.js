@@ -13,12 +13,32 @@
     const head = $('grid-heads');
     head.innerHTML = IMS.RES_KEYS.map((k) => {
       const s = IMS.RES_SPECS[k];
+      const tweaks = IMS.SPEC_PARAMS.filter((p) => !p.only || p.only === k)
+        .map((p) => `
+          <div class="tweak-row">
+            <label>${p.label}</label>
+            <input type="range" data-col="${k}" data-param="${p.key}"
+                   min="${p.min}" max="${p.max}" step="${p.step}" id="spec-${k}-${p.key}" />
+            <output id="specv-${k}-${p.key}"></output>
+          </div>`).join('');
       return `<div class="col-head">
-        <span class="col-icon">${s.icon}</span>
-        <div><div class="col-name">${s.label}</div><div class="col-sub">${s.sub}</div></div>
-        <div class="col-spec">${s.baseSpeed} u/t · ${s.slots} slots · ${s.activeW}W</div>
+        <div class="col-title">
+          <span class="col-icon">${s.icon}</span>
+          <div><div class="col-name">${s.label}</div><div class="col-sub">${s.sub}</div></div>
+          <div class="col-spec" id="colspec-${k}"></div>
+        </div>
+        <div class="col-tweaks">${tweaks}</div>
       </div>`;
     }).join('');
+
+    head.addEventListener('input', (e) => {
+      const el = e.target;
+      if (!el.dataset || !el.dataset.param) return;
+      IMS.RES_SPECS[el.dataset.col][el.dataset.param] = parseFloat(el.value);
+      syncSpecControls();
+      if (onSpecTouched) onSpecTouched();
+    });
+    syncSpecControls();
 
     const grid = $('resource-grid');
     let html = '';
@@ -81,6 +101,44 @@
     });
   }
 
+  /* push the live RES_SPECS values into every slider + readout */
+  let onSpecTouched = null;
+  function syncSpecControls() {
+    for (const k of IMS.RES_KEYS) {
+      const s = IMS.RES_SPECS[k];
+      for (const p of IMS.SPEC_PARAMS) {
+        if (p.only && p.only !== k) continue;
+        const el = $(`spec-${k}-${p.key}`);
+        if (!el) continue;
+        el.value = s[p.key];
+        $(`specv-${k}-${p.key}`).textContent = p.fmt(s[p.key]);
+      }
+      $(`colspec-${k}`).textContent =
+        `${s.baseSpeed} u/t · ${s.slots} slots · ${s.activeW}W`;
+    }
+  }
+
+  function buildPresetBar(onApply) {
+    $('preset-bar').innerHTML = IMS.PRESETS.map((p) => `
+      <button class="btn-preset" data-preset="${p.key}" title="${p.desc}">
+        ${p.name}
+      </button>`).join('');
+    $('preset-bar').addEventListener('click', (e) => {
+      const b = e.target.closest('.btn-preset');
+      if (b) onApply(b.dataset.preset);
+    });
+    onSpecTouched = () => setActivePreset(null); // manual tweak = custom
+  }
+
+  function setActivePreset(key) {
+    for (const b of document.querySelectorAll('.btn-preset')) {
+      b.classList.toggle('preset-active', b.dataset.preset === key);
+    }
+    $('preset-desc').textContent = key
+      ? IMS.PRESETS.find((p) => p.key === key).desc
+      : 'custom hardware condition — set by the column tweakers above';
+  }
+
   /* ---------- per-frame updates ---------- */
 
   function chip(proc, extra = '') {
@@ -104,8 +162,9 @@
         const r = u.row;
         $(`slots-${k}-${r}`).innerHTML =
           u.running.map((j) => chip(j.proc, 'chip-sm')).join('') +
-          Array(u.spec.slots - u.running.length).fill('<span class="slot-empty"></span>').join('');
-        const load = u.load();
+          Array(Math.max(0, u.spec.slots - u.running.length))
+            .fill('<span class="slot-empty"></span>').join('');
+        const load = Math.min(1, u.load());
         $(`load-${k}-${r}`).style.width = (load * 100).toFixed(0) + '%';
         const tFrac = (u.temp - 36) / 64;
         const tEl = $(`temp-${k}-${r}`);
@@ -205,6 +264,7 @@
 
   IMS.UI = {
     buildResourceGrid, buildBrain, buildLegend, buildInjectButtons,
+    buildPresetBar, setActivePreset, syncSpecControls,
     updateQueue, updateGrid, updateBrain, updateKpis, pushLog, flyChip, chip,
   };
 })();

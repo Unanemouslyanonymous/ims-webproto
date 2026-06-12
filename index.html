@@ -18,7 +18,7 @@
       <div class="kpi"><label>Throughput</label><b id="kpi-thr">0.00</b><small>proc/s</small></div>
       <div class="kpi"><label>vs Round-Robin</label><b id="kpi-adv">+0%</b><small>work completed</small></div>
       <div class="kpi"><label>Avg Latency</label><b id="kpi-lat">0.0s</b><small>queue→done</small></div>
-      <div class="kpi"><label>Efficiency</label><b id="kpi-eff">0%</b><small>affinity·power</small></div>
+      <div class="kpi"><label>Efficiency</label><b id="kpi-eff">0%</b><small>perf per watt</small></div>
       <div class="kpi"><label>Sec. Violations</label><b id="kpi-sec">0</b><small>enclave misses</small></div>
       <div class="kpi"><label>Avg Reward</label><b id="kpi-rew">0.00</b><small>EMA</small></div>
       <div class="kpi"><label>Exploration ε</label><b id="kpi-eps">1.00</b><small>decaying</small></div>
@@ -100,6 +100,10 @@
     <section class="col-right">
       <div class="card grid-card">
         <h2>④ Resource Grid <small>4 rows × 3 columns · row 0 = secure enclave ⛨</small></h2>
+        <div class="preset-wrap">
+          <div class="preset-bar" id="preset-bar"></div>
+          <div class="preset-desc" id="preset-desc"></div>
+        </div>
         <div class="grid-heads" id="grid-heads"></div>
         <div class="resource-grid" id="resource-grid"></div>
       </div>
