@@ -46,8 +46,9 @@
 
   class Engine {
     constructor(seed, policyName, agent) {
-      this.policyName = policyName;     // 'rl' | 'rr'
-      this.agent = agent;               // QAgent (rl) or RoundRobinPolicy
+      this.policyName = policyName;
+      this.agent = agent;
+      this.narrative = policyName === 'rl'; // only RL engine emits narrator events
       this.arrivalRng = IMS.mulberry32(seed);
       this.policyRng = IMS.mulberry32(seed ^ 0x9e3779b9);
       this.units = {};
@@ -101,9 +102,20 @@
       return (open.length ? open : free).sort(sortLoad)[0];
     }
 
-    enqueue(proc) {
+    enqueue(proc, isManual) {
       if (this.queue.length < C().maxQueue) {
         this.queue.push({ ...proc, arrived: this.tick });
+        if (this.narrative) {
+          const t = IMS.PROC_TYPES[proc.type];
+          const best = IMS.RES_KEYS.reduce((a, b) =>
+            t.affinity[a] * IMS.RES_SPECS[a].baseSpeed >= t.affinity[b] * IMS.RES_SPECS[b].baseSpeed ? a : b);
+          this.events.push({
+            kind: 'arrive', proc,
+            narr: `📥 <b style="color:${t.color}">${t.label}</b> #${proc.pid} queued ` +
+              `— ${proc.work.toFixed(0)} work units · native hardware: <b>${best}</b>` +
+              (isManual ? ' <em style="color:#ffb648">(manual inject)</em>' : ''),
+          });
+        }
       }
     }
 
@@ -119,28 +131,26 @@
         this.arrivalRng(); this.arrivalRng();
       }
 
-      /* 2. meta-scheduler dispatch with backfilling: scan past the
-         queue head so one stuck process can't block the whole grid.
-         When the grid is under pressure the agent is also offered a
-         WAIT action — learned admission control: holding a process
-         can beat placing it on hostile hardware. */
+      /* 2. meta-scheduler dispatch with backfilling */
+      if (this.agent.sortQueue) this.agent.sortQueue(this.queue);
       let dispatched = 0;
       const scanLimit = 8;
+      const loads = this.colLoads();
       for (let qi = 0; qi < this.queue.length && qi < scanLimit; qi++) {
         if (dispatched >= cfg.dispatchPerTick) break;
         const masked = this.maskedActions();
         if (!masked.length) break;
         const proc = this.queue[qi];
-        const loads = this.colLoads();
         const state = IMS.encodeState(proc.type, loads);
         const actions =
           masked.length < IMS.RES_KEYS.length ? [...masked, 'WAIT'] : masked;
-        const { action, mode } = this.agent.choose(state, actions, this.policyRng);
+        const ctx = { loads, proc, queue: this.queue };
+        const { action, mode } = this.agent.choose(state, actions, this.policyRng, ctx);
         if (action === 'WAIT') {
           if (this.policyName === 'rl') {
             this.agent.update(state, 'WAIT', -0.05, state, [...IMS.RES_KEYS, 'WAIT']);
           }
-          continue; // hold this process, consider the next one
+          continue;
         }
         const unit = this.pickUnit(action, proc);
         if (!unit) continue;
@@ -159,7 +169,7 @@
           misuse: !proc.secure && unit.isolated,
         });
         if (unit.running.at(-1).violation) this.stats.violations++;
-        this.events.push({ kind: 'dispatch', proc, unitId: unit.id, mode, state });
+        this.events.push({ kind: 'dispatch', proc, unitId: unit.id, mode, state, loads: { ...loads } });
       }
 
       /* 3. execution: contention, thermals, wear, power */
@@ -167,7 +177,14 @@
         for (const u of this.units[k]) {
           const spec = u.spec;
           if (u.running.length) {
+            const wasThrottled = u.throttled;
             u.throttled = u.temp > IMS.THROTTLE_TEMP;
+            if (u.throttled && !wasThrottled && this.narrative) {
+              this.events.push({
+                kind: 'throttle', unitId: u.id, temp: u.temp,
+                narr: `🌡 <b>${u.id}</b> throttling at ${u.temp.toFixed(0)}°C — speed cut to ${(IMS.THROTTLE_FACTOR * 100).toFixed(0)}% · agent learning −hw penalty`,
+              });
+            }
             const share =
               (spec.baseSpeed / u.running.length) *
               (u.throttled ? IMS.THROTTLE_FACTOR : 1);

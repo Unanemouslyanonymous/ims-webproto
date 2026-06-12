@@ -9,12 +9,12 @@
   IMS.CONFIG = {
     /* --- simulation clock --- */
     TICKS_PER_SEC: 30,        // sim ticks that equal one "second" for display
-    speed: 2,                 // sim ticks executed per animation frame
+    speed: 0.4,               // fractional ticks/frame — slow enough to read each job
     running: true,
 
     /* --- workload generation --- */
     autoGenerate: true,
-    arrivalRate: 0.28,        // P(new process) per tick
+    arrivalRate: 0.15,        // P(new process) per tick — gentle rain
     maxQueue: 60,
     dispatchPerTick: 3,       // scheduler decisions per tick
 
@@ -23,7 +23,7 @@
     gamma: 0.90,              // discount factor (values future grid health)
     epsilon: 1.0,             // initial exploration probability
     epsilonMin: 0.05,
-    epsilonDecay: 0.9990,     // multiplicative decay per decision
+    epsilonDecay: 0.9985,     // slower decay — convergence arc is clearly visible
 
     /* --- reward shaping weights (the allocation objectives) --- */
     weights: {
