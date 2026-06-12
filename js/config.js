@@ -43,25 +43,44 @@
       label: 'COMPUTE', color: '#4da3ff', icon: '⚙',
       desc: 'branchy serial integer work — CPU-bound, low parallelism',
       reqVec: { cpu: [0.60, 0.95], gpu: [0.02, 0.15], io: [0.02, 0.15], parallelism: [0.02, 0.20], mem: [0.5, 6] },
-      secure: false, work: [30, 90], mix: 0.30,
+      secure: false, work: [30, 90], mix: 0.22,
     },
     PARALLEL: {
       label: 'PARALLEL', color: '#3ddc84', icon: '⧉',
       desc: 'vectorizable SIMD / tensor kernels — massively parallel, HBM-intensive',
       reqVec: { cpu: [0.05, 0.20], gpu: [0.70, 0.95], io: [0.02, 0.10], parallelism: [0.70, 0.95], mem: [2, 14] },
-      secure: false, work: [40, 120], mix: 0.30,
+      secure: false, work: [40, 120], mix: 0.20,
     },
     IO: {
       label: 'I/O', color: '#ffb648', icon: '⇆',
       desc: 'storage-bound streams — sequential / random NVMe access',
       reqVec: { cpu: [0.05, 0.15], gpu: [0.02, 0.10], io: [0.75, 0.98], parallelism: [0.02, 0.10], mem: [0.25, 2] },
-      secure: false, work: [25, 80], mix: 0.25,
+      secure: false, work: [25, 80], mix: 0.18,
     },
     SECURE: {
       label: 'SECURE', color: '#c084fc', icon: '⛨',
       desc: 'attested crypto ops — sequential, TEE-resident, CPU enclave',
       reqVec: { cpu: [0.60, 0.90], gpu: [0.05, 0.15], io: [0.05, 0.15], parallelism: [0.02, 0.10], mem: [0.25, 2] },
-      secure: true, work: [20, 60], mix: 0.15,
+      secure: true, work: [20, 60], mix: 0.10,
+    },
+    /* ---- reality-gap workloads: expose where the 3-column abstraction is incomplete ---- */
+    INFER: {
+      label: 'INFER', color: '#fb923c', icon: '∑',
+      desc: 'ML inference — GPU HBM-bound; large model weights cause memory pressure under concurrent load',
+      reqVec: { cpu: [0.10, 0.25], gpu: [0.55, 0.80], io: [0.05, 0.15], parallelism: [0.45, 0.70], mem: [32, 44] },
+      secure: false, work: [60, 180], mix: 0.12,
+    },
+    STREAM: {
+      label: 'STREAM', color: '#22d3ee', icon: '⇉',
+      desc: 'event stream processing — CPU-bound in-sim; reality gap: no "network" column; real bottleneck is network-I/O',
+      reqVec: { cpu: [0.55, 0.80], gpu: [0.02, 0.08], io: [0.15, 0.35], parallelism: [0.05, 0.15], mem: [0.5, 2] },
+      secure: false, work: [15, 45], mix: 0.10,
+    },
+    GRAPH: {
+      label: 'GRAPH', color: '#818cf8', icon: '⬡',
+      desc: 'graph analytics — large working set (6–20 GB) exceeds NVMe 8 GB buffer → GPU wins; reality gap: thread divergence penalty not modeled',
+      reqVec: { cpu: [0.35, 0.55], gpu: [0.05, 0.12], io: [0.30, 0.55], parallelism: [0.15, 0.35], mem: [6, 20] },
+      secure: false, work: [40, 140], mix: 0.08,
     },
   };
   IMS.PROC_KEYS = Object.keys(IMS.PROC_TYPES);
