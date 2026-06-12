@@ -141,6 +141,75 @@ input[type='checkbox'] { accent-color: var(--accent); }
 .log-neg { color: var(--bad); font-weight: 600; }
 .log-sys { color: var(--accent); }
 
+/* ---------- narrator bar ---------- */
+.narrator-wrap { margin-bottom: 12px; }
+.narrator-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.nar-title { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; color: var(--text); }
+.nar-hint { font-size: 9px; color: var(--dim); }
+.narrator { display: flex; flex-direction: column; gap: 4px; max-height: 210px; overflow-y: auto; }
+.narrator::-webkit-scrollbar { width: 4px; }
+.narrator::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
+
+.nar-line {
+  font-size: 11.5px; line-height: 1.55; padding: 5px 10px;
+  border-radius: 6px; background: var(--panel-2); border-left: 3px solid var(--line);
+  animation: nar-in 0.25s ease;
+}
+@keyframes nar-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+.nar-arrive   { border-color: var(--dim); }
+.nar-dispatch { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel-2)); }
+.nar-complete { border-color: var(--good); }
+.nar-warn     { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 6%, var(--panel-2)); }
+.nar-summary  { border-color: var(--purple); background: color-mix(in srgb, var(--purple) 7%, var(--panel-2)); }
+.nar-alert    { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--panel-2)); }
+.nar-sys      { color: var(--accent); }
+.nar-line small { color: var(--dim); margin-left: 6px; }
+.nar-mode { font-size: 9px; padding: 2px 7px; border-radius: 6px; font-weight: 700; letter-spacing: 0.08em; }
+.nar-explore { background: var(--warn); color: #1a1205; }
+.nar-exploit { background: var(--good); color: #07210f; }
+
+/* ---------- brain explain box ---------- */
+.brain-explain {
+  background: color-mix(in srgb, var(--purple) 9%, var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--purple) 30%, var(--line));
+  border-radius: 7px; padding: 8px 10px; font-size: 11.5px; line-height: 1.5;
+  margin-bottom: 8px; min-height: 34px; color: var(--text);
+}
+
+/* ---------- benchmark table ---------- */
+.bench-section { margin-top: 12px; }
+.bench-note { font-size: 11px; color: var(--dim); margin-bottom: 10px; line-height: 1.6; }
+
+.bench-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.bench-table thead tr { border-bottom: 2px solid var(--line); }
+.bench-table th {
+  padding: 6px 10px; text-align: right; font-size: 9px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--dim); font-weight: 600;
+}
+.bench-table th:first-child { text-align: left; }
+.bench-table th small { display: block; color: var(--good); opacity: 0.7; }
+
+.bench-row { border-bottom: 1px solid rgba(35,48,82,0.5); transition: background 0.2s; }
+.bench-row:hover { background: rgba(77,163,255,0.05); }
+.bench-rl {
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel-2));
+  outline: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: -1px;
+}
+
+.bench-algo-name { padding: 8px 10px; min-width: 160px; }
+.bench-dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; margin-right: 7px; vertical-align: middle; }
+.bench-desc { font-size: 9px; color: var(--dim); margin-top: 2px; padding-left: 16px; }
+.oracle-tag { font-size: 9px; color: #ffd700; font-style: normal; }
+
+.bench-val {
+  padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums;
+  font-size: 12px; transition: background 0.4s, color 0.4s;
+}
+.bench-best  { background: rgba(61,220,132,0.12); color: var(--good); font-weight: 700; }
+.bench-worst { background: rgba(255,85,102,0.10); color: var(--bad); }
+
 /* ---------- preset hardware conditions ---------- */
 .preset-wrap { margin-bottom: 10px; }
 .preset-bar { display: flex; gap: 6px; flex-wrap: wrap; }

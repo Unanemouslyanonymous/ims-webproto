@@ -16,22 +16,26 @@ const TICKS = 30000;
 
 IMS.applyPreset('nominal');
 const agent = new IMS.QAgent(IMS.CONFIG);
-const rl = new IMS.Engine(SEED, 'rl', agent);
-const rr = new IMS.Engine(SEED, 'rr', new IMS.RoundRobinPolicy());
+const rl   = new IMS.Engine(SEED, 'rl',     agent);
+const rr   = new IMS.Engine(SEED, 'rr',     new IMS.RoundRobinPolicy());
+const ll   = new IMS.Engine(SEED, 'll',     new IMS.LeastLoadedPolicy());
+const pri  = new IMS.Engine(SEED, 'pri',    new IMS.PriorityPolicy());
+const sjf  = new IMS.Engine(SEED, 'sjf',    new IMS.ShortestJobFirstPolicy());
+const rand = new IMS.Engine(SEED, 'rand',   new IMS.RandomPolicy());
+const ora  = new IMS.Engine(SEED, 'oracle', new IMS.AffinityOraclePolicy());
+const all  = [rl, rr, ll, pri, sjf, rand, ora];
 
 /* run a phase, counting where PARALLEL work physically lands */
 function runPhase(ticks) {
   const parallelDispatch = { CPU: 0, GPU: 0, NVME: 0 };
   for (let t = 0; t < ticks; t++) {
-    rl.step();
-    rr.step();
+    for (const e of all) e.step();
     for (const ev of rl.events) {
       if (ev.kind === 'dispatch' && ev.proc.type === 'PARALLEL') {
         parallelDispatch[ev.unitId.split('-')[0]]++;
       }
     }
-    rl.events.length = 0;
-    rr.events.length = 0;
+    for (const e of all) e.events.length = 0;
   }
   return parallelDispatch;
 }
@@ -47,8 +51,13 @@ const fmt = (e) => ({
   rewardEMA: +e.stats.rewardEMA.toFixed(3),
 });
 
-console.log('RL :', fmt(rl));
-console.log('RR :', fmt(rr));
+console.log('RL     :', fmt(rl));
+console.log('Oracle :', fmt(ora));
+console.log('LL     :', fmt(ll));
+console.log('Pri    :', fmt(pri));
+console.log('SJF    :', fmt(sjf));
+console.log('RR     :', fmt(rr));
+console.log('Rand   :', fmt(rand));
 console.log('agent: eps=%s decisions=%d qEntries=%d', agent.eps.toFixed(3), agent.decisions, agent.q.size);
 
 console.log('\nLearned policy (avg Q per type x column):');
@@ -81,7 +90,8 @@ for (const [t, want] of Object.entries(expectBest)) {
 console.log('\n--- phase 2: applying 🧨 GPU Failure preset (live, mid-run) ---');
 IMS.applyPreset('gpufail');
 agent.eps = Math.max(agent.eps, 0.35); // re-exploration on fleet event
-const completedBefore = { rl: rl.stats.completed, rr: rr.stats.completed };
+const completedBefore = {};
+for (const e of all) completedBefore[e.policyName] = e.stats.completed;
 
 const phase2Parallel = runPhase(TICKS);
 
@@ -89,8 +99,8 @@ const p1Total = Object.values(phase1Parallel).reduce((a, b) => a + b, 0);
 const p2Total = Object.values(phase2Parallel).reduce((a, b) => a + b, 0);
 const gpuShare1 = phase1Parallel.GPU / p1Total;
 const gpuShare2 = phase2Parallel.GPU / p2Total;
-const rlGain = rl.stats.completed - completedBefore.rl;
-const rrGain = rr.stats.completed - completedBefore.rr;
+const rlGain = rl.stats.completed - completedBefore['rl'];
+const rrGain = rr.stats.completed - completedBefore['rr'];
 
 console.log('PARALLEL placement, healthy GPUs :', phase1Parallel,
   `(${(gpuShare1 * 100).toFixed(0)}% on GPU)`);

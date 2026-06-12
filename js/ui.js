@@ -1,7 +1,5 @@
 /* ============================================================
- * UI layer: builds and updates the dashboard DOM.
- * Engine A (RL) is what the user sees; engine B (round-robin)
- * only feeds the comparison chart.
+ * UI layer: DOM construction + per-frame updates.
  * ============================================================ */
 (function () {
   const IMS = window.IMS;
@@ -101,7 +99,6 @@
     });
   }
 
-  /* push the live RES_SPECS values into every slider + readout */
   let onSpecTouched = null;
   function syncSpecControls() {
     for (const k of IMS.RES_KEYS) {
@@ -127,7 +124,7 @@
       const b = e.target.closest('.btn-preset');
       if (b) onApply(b.dataset.preset);
     });
-    onSpecTouched = () => setActivePreset(null); // manual tweak = custom
+    onSpecTouched = () => setActivePreset(null);
   }
 
   function setActivePreset(key) {
@@ -137,6 +134,96 @@
     $('preset-desc').textContent = key
       ? IMS.PRESETS.find((p) => p.key === key).desc
       : 'custom hardware condition — set by the column tweakers above';
+  }
+
+  /* ---------- narrator panel ---------- */
+
+  function buildNarratorPanel() {
+    // built in HTML; just ensure it exists
+  }
+
+  const MAX_NAR = 14;
+  function pushNarrator(html, cls = '') {
+    const log = $('narrator');
+    if (!log) return;
+    const div = document.createElement('div');
+    div.className = 'nar-line' + (cls ? ' ' + cls : '');
+    div.innerHTML = html;
+    log.prepend(div);
+    while (log.children.length > MAX_NAR) log.lastChild.remove();
+  }
+
+  /* ---------- benchmark table ---------- */
+
+  function buildBenchmarkTable() {
+    const wrap = $('bench-table-wrap');
+    if (!wrap) return;
+    const metrics = [
+      { key: 'completed', label: 'Completed', best: 'max', fmt: (v) => v.toLocaleString() },
+      { key: 'latency',   label: 'Avg Latency', best: 'min', fmt: (v) => v.toFixed(1) + 's', unit: 'lower ↓' },
+      { key: 'eff',       label: 'Efficiency', best: 'max', fmt: (v) => (v * 100).toFixed(0) + '%', unit: 'perf/W' },
+      { key: 'violations',label: 'Sec. Violations', best: 'min', fmt: (v) => v },
+      { key: 'reward',    label: 'Reward EMA', best: 'max', fmt: (v) => v.toFixed(2) },
+    ];
+    let html = `<table class="bench-table">
+      <thead><tr>
+        <th>Algorithm</th>
+        ${metrics.map((m) => `<th>${m.label}<br><small>${m.unit || 'higher ↑'}</small></th>`).join('')}
+      </tr></thead><tbody>`;
+    for (const a of IMS.ALGO_DEFS) {
+      const isRL = a.isRL;
+      html += `<tr class="bench-row${isRL ? ' bench-rl' : ''}" id="bench-${a.key}">
+        <td class="bench-algo-name">
+          <i class="bench-dot" style="background:${a.color}"></i>
+          <span>${a.label}${a.oracle ? ' <em class="oracle-tag">★ upper bound</em>' : ''}</span>
+          <div class="bench-desc">${a.desc}</div>
+        </td>
+        ${metrics.map((m) => `<td class="bench-val" id="bench-${a.key}-${m.key}">—</td>`).join('')}
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }
+
+  function updateBenchmarkTable(algoEngines) {
+    const metrics = ['completed', 'latency', 'eff', 'violations', 'reward'];
+    const bestFn  = ['max', 'min', 'max', 'min', 'max'];
+
+    const vals = {};
+    for (const { key, engine } of algoEngines) {
+      vals[key] = {
+        completed:  engine.stats.completed,
+        latency:    engine.avgLatency(),
+        eff:        engine.avgEff(),
+        violations: engine.stats.violations,
+        reward:     engine.stats.rewardEMA,
+      };
+    }
+
+    for (let mi = 0; mi < metrics.length; mi++) {
+      const m = metrics[mi];
+      const fn = bestFn[mi];
+      const allV = algoEngines.map(({ key }) => vals[key][m]);
+      const best = fn === 'max' ? Math.max(...allV) : Math.min(...allV);
+      const worst = fn === 'max' ? Math.min(...allV) : Math.max(...allV);
+
+      for (const { key } of algoEngines) {
+        const cell = $(`bench-${key}-${m}`);
+        if (!cell) continue;
+        const v = vals[key][m];
+        const fmts = [
+          (v) => v.toLocaleString(),
+          (v) => v.toFixed(1) + 's',
+          (v) => (v * 100).toFixed(0) + '%',
+          (v) => v,
+          (v) => v.toFixed(2),
+        ];
+        cell.textContent = fmts[mi](v);
+        cell.classList.remove('bench-best', 'bench-worst');
+        if (Math.abs(v - best) < 1e-9)  cell.classList.add('bench-best');
+        if (Math.abs(v - worst) < 1e-9 && best !== worst) cell.classList.add('bench-worst');
+      }
+    }
   }
 
   /* ---------- per-frame updates ---------- */
@@ -184,12 +271,18 @@
     $('agent-decisions').textContent = agent.decisions.toLocaleString();
     $('agent-states').textContent = agent.q.size.toLocaleString();
 
+    // plain-English policy summary
+    const explain = $('brain-explain');
+    if (explain && agent.decisions % 10 === 0) {
+      explain.textContent = agent.explain();
+    }
+
     if (lastDecision) {
       const t = IMS.PROC_TYPES[lastDecision.proc.type];
       $('brain-mode').textContent = lastDecision.mode;
       $('brain-mode').className = 'mode-badge mode-' + lastDecision.mode.toLowerCase();
       $('brain-state').innerHTML =
-        `<b style="color:${t.color}">${t.label}</b> #${lastDecision.proc.pid} · grid state <code>${lastDecision.state.split(':')[1]}</code> → <b>${lastDecision.unitId}</b>`;
+        `<b style="color:${t.color}">${t.label}</b> #${lastDecision.proc.pid} · state <code>${lastDecision.state.split(':')[1]}</code> → <b>${lastDecision.unitId}</b>`;
       const qs = IMS.RES_KEYS.map((k) => agent.getQ(lastDecision.state, k));
       const lo = Math.min(0, ...qs), hi = Math.max(0.01, ...qs);
       IMS.RES_KEYS.forEach((k, i) => {
@@ -213,19 +306,20 @@
     }
   }
 
-  function updateKpis(eA, eB, agent) {
-    $('kpi-thr').textContent = eA.throughput().toFixed(2);
-    $('kpi-lat').textContent = eA.avgLatency().toFixed(1) + 's';
-    $('kpi-eff').textContent = (eA.avgEff() * 100).toFixed(0) + '%';
-    $('kpi-sec').textContent = eA.stats.violations;
-    $('kpi-rew').textContent = eA.stats.rewardEMA.toFixed(2);
+  function updateKpis(engineRL, algoEngines, agent) {
+    const eRR = algoEngines.find((a) => a.key === 'rr')?.engine;
+    $('kpi-thr').textContent = engineRL.throughput().toFixed(2);
+    $('kpi-lat').textContent = engineRL.avgLatency().toFixed(1) + 's';
+    $('kpi-eff').textContent = (engineRL.avgEff() * 100).toFixed(0) + '%';
+    $('kpi-sec').textContent = engineRL.stats.violations;
+    $('kpi-rew').textContent = engineRL.stats.rewardEMA.toFixed(2);
     $('kpi-eps').textContent = agent.eps.toFixed(2);
-    const adv = eB.stats.completed > 20
-      ? ((eA.stats.completed - eB.stats.completed) / eB.stats.completed) * 100
-      : 0;
-    const advEl = $('kpi-adv');
-    advEl.textContent = (adv >= 0 ? '+' : '') + adv.toFixed(0) + '%';
-    advEl.style.color = adv >= 5 ? '#3ddc84' : adv <= -5 ? '#ff5566' : '#e8eefc';
+    if (eRR && eRR.stats.completed > 20) {
+      const adv = ((engineRL.stats.completed - eRR.stats.completed) / eRR.stats.completed) * 100;
+      const advEl = $('kpi-adv');
+      advEl.textContent = (adv >= 0 ? '+' : '') + adv.toFixed(0) + '%';
+      advEl.style.color = adv >= 5 ? '#3ddc84' : adv <= -5 ? '#ff5566' : '#e8eefc';
+    }
   }
 
   const MAX_LOG = 9;
@@ -238,10 +332,9 @@
     while (log.children.length > MAX_LOG) log.lastChild.remove();
   }
 
-  /* animated chip flying from the brain card to the target cell */
   let activeFlies = 0;
   function flyChip(proc, unitId) {
-    if (activeFlies > 8) return;
+    if (activeFlies > 6) return;
     const from = $('brain-card'), to = $('cell-' + unitId);
     if (!from || !to) return;
     const f = from.getBoundingClientRect(), t = to.getBoundingClientRect();
@@ -265,6 +358,9 @@
   IMS.UI = {
     buildResourceGrid, buildBrain, buildLegend, buildInjectButtons,
     buildPresetBar, setActivePreset, syncSpecControls,
-    updateQueue, updateGrid, updateBrain, updateKpis, pushLog, flyChip, chip,
+    buildNarratorPanel, pushNarrator,
+    buildBenchmarkTable, updateBenchmarkTable,
+    updateQueue, updateGrid, updateBrain, updateKpis,
+    pushLog, flyChip, chip,
   };
 })();

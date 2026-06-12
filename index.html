@@ -12,12 +12,12 @@
   <header>
     <div class="brand">
       <h1>IMS<span>·</span>Intelligent Meta Scheduler</h1>
-      <p>Reinforcement-learning middleware allocating processes across a 4×3 hardware grid</p>
+      <p>Reinforcement-learning middleware · 7 scheduling algorithms competing on identical arrivals</p>
     </div>
     <div class="kpis">
-      <div class="kpi"><label>Throughput</label><b id="kpi-thr">0.00</b><small>proc/s</small></div>
+      <div class="kpi"><label>RL Throughput</label><b id="kpi-thr">0.00</b><small>proc/s</small></div>
       <div class="kpi"><label>vs Round-Robin</label><b id="kpi-adv">+0%</b><small>work completed</small></div>
-      <div class="kpi"><label>Avg Latency</label><b id="kpi-lat">0.0s</b><small>queue→done</small></div>
+      <div class="kpi"><label>RL Latency</label><b id="kpi-lat">0.0s</b><small>queue→done</small></div>
       <div class="kpi"><label>Efficiency</label><b id="kpi-eff">0%</b><small>perf per watt</small></div>
       <div class="kpi"><label>Sec. Violations</label><b id="kpi-sec">0</b><small>enclave misses</small></div>
       <div class="kpi"><label>Avg Reward</label><b id="kpi-rew">0.00</b><small>EMA</small></div>
@@ -25,10 +25,19 @@
     </div>
     <div class="run-controls">
       <button id="btn-pause" class="btn">⏸ Pause</button>
-      <button id="btn-reset-learning" class="btn btn-ghost" title="Wipe the Q-table and watch the agent relearn">⟲ Reset Learning</button>
+      <button id="btn-reset-learning" class="btn btn-ghost" title="Wipe Q-table, watch agent relearn">⟲ Reset Learning</button>
       <button id="btn-reset-all" class="btn btn-ghost">⟲ Reset All</button>
     </div>
   </header>
+
+  <!-- ============ NARRATOR BAR ============ -->
+  <div class="narrator-wrap card">
+    <div class="narrator-head">
+      <span class="nar-title">🧠 What the IMS is doing right now</span>
+      <span class="nar-hint">plain-English translation of every scheduling decision · pauses automatically at speed &gt; 3×</span>
+    </div>
+    <div id="narrator" class="narrator"></div>
+  </div>
 
   <!-- ============ MAIN: generator/queue → RL brain → resource grid ============ -->
   <main>
@@ -65,7 +74,7 @@
           <input type="range" id="ctl-whw" min="0" max="2" step="0.1" /></div>
         <h3>Simulation</h3>
         <div class="ctl-row"><label>sim speed <output id="ctl-speed-val"></output></label>
-          <input type="range" id="ctl-speed" min="1" max="20" step="1" /></div>
+          <input type="range" id="ctl-speed" min="0.1" max="20" step="0.1" /></div>
       </div>
     </section>
 
@@ -74,7 +83,8 @@
       <div class="card brain" id="brain-card">
         <h2>③ Intelligent Meta Scheduler <span class="mode-badge" id="brain-mode">—</span></h2>
         <p class="brain-sub">Q-learning agent · observes (process type, grid load) · picks a resource column</p>
-        <div class="brain-state" id="brain-state">waiting for first dispatch…</div>
+        <div class="brain-explain" id="brain-explain">Waiting for first dispatch…</div>
+        <div class="brain-state" id="brain-state"></div>
 
         <h3>Q-values for current state</h3>
         <div id="q-bars"></div>
@@ -91,7 +101,7 @@
       </div>
 
       <div class="card">
-        <h2>Decision Log</h2>
+        <h2>Decision Log <small>(raw)</small></h2>
         <div id="decision-log" class="log"></div>
       </div>
     </section>
@@ -99,7 +109,7 @@
     <!-- STAGE 3: the 4x3 hardware grid executing the work -->
     <section class="col-right">
       <div class="card grid-card">
-        <h2>④ Resource Grid <small>4 rows × 3 columns · row 0 = secure enclave ⛨</small></h2>
+        <h2>④ Resource Grid <small>4 rows × 3 columns · row 0 = secure enclave ⛨ · tweakers above each column</small></h2>
         <div class="preset-wrap">
           <div class="preset-bar" id="preset-bar"></div>
           <div class="preset-desc" id="preset-desc"></div>
@@ -110,14 +120,25 @@
     </section>
   </main>
 
+  <!-- ============ BENCHMARK: 7 algorithms compared live ============ -->
+  <section class="bench-section card">
+    <h2>⚖ Live Algorithm Benchmark <small>all 7 schedulers running on byte-identical arrivals — same hardware, different brains</small></h2>
+    <p class="bench-note">
+      <b style="color:#4da3ff">RL IMS</b> has no prior knowledge of hardware affinities or workload types — it discovers them from reward alone.
+      <b style="color:#ffd700">Affinity Oracle ★</b> cheats by knowing the affinity table; it is the theoretical upper bound.
+      Every other algorithm is a production-grade baseline used in real schedulers.
+    </p>
+    <div id="bench-table-wrap"></div>
+  </section>
+
   <!-- ============ FOOTER: learning evidence ============ -->
   <footer>
     <div class="card chart-card">
-      <h2>Latency — RL vs baseline <small>same arrivals, different scheduler · lower is better</small></h2>
+      <h2>Latency — 5 algorithms <small>same arrivals · lower is better</small></h2>
       <canvas id="chart-lat"></canvas>
     </div>
     <div class="card chart-card">
-      <h2>Reward signal <small>what the agent optimises</small></h2>
+      <h2>RL Reward signal <small>what the agent optimises</small></h2>
       <canvas id="chart-rew"></canvas>
     </div>
     <div class="card chart-card">
