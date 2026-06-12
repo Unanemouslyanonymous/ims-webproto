@@ -26,13 +26,15 @@
       this.wear = 0;            // NVMe write endurance consumed (0..1)
       this.running = [];        // active jobs
       this.throttled = false;
+      this.memUsed = 0;         // GB of memory currently occupied by running jobs
+      this.numaNode = row < IMS.NUMA.rowsPerNode ? 0 : 1;
     }
     load() { return this.running.length / this.spec.slots; }
     free() { return this.running.length < this.spec.slots; }
   }
 
   function makeProcess(rng) {
-    // weighted type draw
+    // weighted type draw (call 1)
     let r = rng(), key = IMS.PROC_KEYS[0];
     for (const k of IMS.PROC_KEYS) {
       const t = IMS.PROC_TYPES[k];
@@ -40,8 +42,17 @@
       r -= t.mix;
     }
     const t = IMS.PROC_TYPES[key];
-    const work = t.work[0] + rng() * (t.work[1] - t.work[0]);
-    return { pid: nextPid++, type: key, work, secure: t.secure };
+    const work = t.work[0] + rng() * (t.work[1] - t.work[0]);  // call 2
+    // sample resource demand vector from type-specific ranges (calls 3-7)
+    const rv = t.reqVec;
+    const reqVec = {
+      cpu:         rv.cpu[0]         + rng() * (rv.cpu[1]         - rv.cpu[0]),
+      gpu:         rv.gpu[0]         + rng() * (rv.gpu[1]         - rv.gpu[0]),
+      io:          rv.io[0]          + rng() * (rv.io[1]          - rv.io[0]),
+      parallelism: rv.parallelism[0] + rng() * (rv.parallelism[1] - rv.parallelism[0]),
+      mem:         rv.mem[0]         + rng() * (rv.mem[1]         - rv.mem[0]),
+    };
+    return { pid: nextPid++, type: key, work, secure: t.secure, reqVec };
   }
 
   class Engine {
@@ -108,7 +119,8 @@
         if (this.narrative) {
           const t = IMS.PROC_TYPES[proc.type];
           const best = IMS.RES_KEYS.reduce((a, b) =>
-            t.affinity[a] * IMS.RES_SPECS[a].baseSpeed >= t.affinity[b] * IMS.RES_SPECS[b].baseSpeed ? a : b);
+            IMS.computeAffinity(proc, a) * IMS.RES_SPECS[a].baseSpeed >=
+            IMS.computeAffinity(proc, b) * IMS.RES_SPECS[b].baseSpeed ? a : b);
           this.events.push({
             kind: 'arrive', proc,
             narr: `📥 <b style="color:${t.color}">${t.label}</b> #${proc.pid} queued ` +
@@ -127,8 +139,8 @@
       if (cfg.autoGenerate && this.arrivalRng() < cfg.arrivalRate) {
         this.enqueue(makeProcess(this.arrivalRng));
       } else if (cfg.autoGenerate) {
-        // burn the same rng calls a spawn would, so streams stay aligned
-        this.arrivalRng(); this.arrivalRng();
+        // burn 7 calls to match makeProcess (type + work + 5 reqVec components)
+        for (let _b = 0; _b < 7; _b++) this.arrivalRng();
       }
 
       /* 2. meta-scheduler dispatch with backfilling */
@@ -141,7 +153,7 @@
         const masked = this.maskedActions();
         if (!masked.length) break;
         const proc = this.queue[qi];
-        const state = IMS.encodeState(proc.type, loads);
+        const state = IMS.encodeState(proc.type, loads, proc);
         const actions =
           masked.length < IMS.RES_KEYS.length ? [...masked, 'WAIT'] : masked;
         const ctx = { loads, proc, queue: this.queue };
@@ -165,14 +177,27 @@
           ticksRun: 0,
           overheatTicks: 0,
           wearAdded: 0,
+          startupTicks: IMS.CONTEXT_SWITCH_TICKS,
           violation: proc.secure && !unit.isolated,
           misuse: !proc.secure && unit.isolated,
         });
+        unit.memUsed += proc.reqVec ? proc.reqVec.mem : 0;
         if (unit.running.at(-1).violation) this.stats.violations++;
         this.events.push({ kind: 'dispatch', proc, unitId: unit.id, mode, state, loads: { ...loads } });
       }
 
-      /* 3. execution: contention, thermals, wear, power */
+      /* 3. execution: contention, thermals, wear, P-states, NUMA, memory pressure, rack power */
+
+      /* pre-pass: compute rack draw and PDU throttle factor */
+      let rackDraw = 0;
+      for (const rk of IMS.RES_KEYS)
+        for (const ru of this.units[rk])
+          rackDraw += ru.running.length
+            ? ru.spec.idleW + (ru.spec.activeW - ru.spec.idleW) * ru.load()
+            : ru.spec.idleW;
+      const pduFactor = rackDraw > IMS.POWER.rackBudgetW
+        ? Math.max(0.60, IMS.POWER.rackBudgetW / rackDraw) : 1.0;
+
       for (const k of IMS.RES_KEYS) {
         for (const u of this.units[k]) {
           const spec = u.spec;
@@ -185,15 +210,39 @@
                 narr: `🌡 <b>${u.id}</b> throttling at ${u.temp.toFixed(0)}°C — speed cut to ${(IMS.THROTTLE_FACTOR * 100).toFixed(0)}% · agent learning −hw penalty`,
               });
             }
-            const share =
-              (spec.baseSpeed / u.running.length) *
-              (u.throttled ? IMS.THROTTLE_FACTOR : 1);
+            /* CPU P-state: graduated frequency reduction before hard throttle */
+            let pstateFactor = 1.0;
+            if (k === 'CPU') {
+              const { thresholds: th, factors: fa } = IMS.CPU_PSTATE;
+              if (u.temp >= th[2])      pstateFactor = fa[3];
+              else if (u.temp >= th[1]) pstateFactor = fa[2];
+              else if (u.temp >= th[0]) pstateFactor = fa[1];
+            }
+            /* memory pressure: slow down when unit DRAM is nearly saturated */
+            const memCap = spec.memCapacityGB;
+            const memPressure = memCap ? u.memUsed / memCap : 0;
+            const memFactor = memPressure > 0.85
+              ? Math.max(0.50, 1 - (memPressure - 0.85) * 3.33) : 1.0;
+
+            const thermalFactor = u.throttled ? IMS.THROTTLE_FACTOR : 1;
+            const share = (spec.baseSpeed / u.running.length) *
+              thermalFactor * pstateFactor * memFactor * pduFactor;
+
             for (const job of u.running) {
-              const aff = IMS.PROC_TYPES[job.proc.type].affinity[k];
-              const rate = share * aff;
+              /* physics-based affinity from job's resource demand vector */
+              const aff = IMS.computeAffinity(job.proc, k);
+              /* NUMA penalty: CPU-bound work prefers node 0 (rows 0-1) */
+              const numaCross = k === 'CPU' && u.numaNode !== 0 &&
+                (job.proc.type === 'COMPUTE' || job.proc.type === 'SECURE');
+              const numaFactor = numaCross ? 1 / IMS.NUMA.crossPenalty : 1.0;
+              /* context-switch startup cost: first N ticks at reduced efficiency */
+              const startupFactor = job.startupTicks > 0 ? IMS.CONTEXT_SWITCH_FACTOR : 1.0;
+              if (job.startupTicks > 0) job.startupTicks--;
+
+              const rate = share * aff * numaFactor * startupFactor;
               job.remaining -= rate;
               job.ticksRun++;
-              if (u.throttled) job.overheatTicks++;
+              if (u.throttled || pstateFactor < 1.0) job.overheatTicks++;
               if (spec.wearPerWork) {
                 const dw = rate * spec.wearPerWork * 0.01;
                 u.wear = Math.min(1, u.wear + dw);
@@ -234,12 +283,13 @@
 
     complete(job, unit) {
       const cfg = C();
-      const t = IMS.PROC_TYPES[job.proc.type];
+      /* release memory held by this job */
+      unit.memUsed = Math.max(0, unit.memUsed - (job.proc.reqVec ? job.proc.reqVec.mem : 0));
 
       /* reward components, each roughly in [-1, 1] */
       let bestSpeed = 0;
       for (const k of IMS.RES_KEYS) {
-        bestSpeed = Math.max(bestSpeed, IMS.RES_SPECS[k].baseSpeed * t.affinity[k]);
+        bestSpeed = Math.max(bestSpeed, IMS.RES_SPECS[k].baseSpeed * IMS.computeAffinity(job.proc, k));
       }
       const idealTicks = job.proc.work / bestSpeed;
       const latencyTicks = this.tick - job.proc.arrived;
@@ -251,10 +301,9 @@
       let bestPerW = 0;
       for (const k of IMS.RES_KEYS) {
         const s = IMS.RES_SPECS[k];
-        bestPerW = Math.max(bestPerW, (s.baseSpeed * t.affinity[k]) / s.activeW);
+        bestPerW = Math.max(bestPerW, (s.baseSpeed * IMS.computeAffinity(job.proc, k)) / s.activeW);
       }
-      const perW =
-        (unit.spec.baseSpeed * t.affinity[unit.colKey]) / unit.spec.activeW;
+      const perW = (unit.spec.baseSpeed * IMS.computeAffinity(job.proc, unit.colKey)) / unit.spec.activeW;
       const rEff = bestPerW > 0 ? perW / bestPerW : 0;
 
       const rSec = job.proc.secure
@@ -273,7 +322,7 @@
         wSum;
 
       if (this.policyName === 'rl') {
-        const s2 = IMS.encodeState(job.proc.type, this.colLoads());
+        const s2 = IMS.encodeState(job.proc.type, this.colLoads(), job.proc);
         this.agent.update(job.state, job.action, r, s2, IMS.RES_KEYS);
       }
 

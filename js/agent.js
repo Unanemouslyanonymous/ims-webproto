@@ -16,11 +16,13 @@
     return load < 0.34 ? 0 : load < 0.67 ? 1 : 2;
   }
 
-  IMS.encodeState = function (procType, loads) {
-    return (
-      procType + ':' +
-      bucket(loads.CPU) + bucket(loads.GPU) + bucket(loads.NVME)
-    );
+  IMS.encodeState = function (procType, loads, proc) {
+    const loadStr = '' + bucket(loads.CPU) + bucket(loads.GPU) + bucket(loads.NVME);
+    if (!proc || !proc.reqVec) return procType + ':' + loadStr;
+    /* dominant resource fingerprint enriches state without state-space explosion */
+    const r = proc.reqVec;
+    const dom = r.io > 0.5 ? 'I' : r.parallelism > 0.5 ? 'P' : r.cpu > 0.5 ? 'C' : 'M';
+    return procType + ':' + dom + ':' + loadStr;
   };
 
   /* ============================================================
@@ -184,18 +186,17 @@
     }
   }
 
-  /* 6. Affinity Oracle: cheats — knows the real affinity table.
-        Upper bound. Picks the column where this job type runs fastest
-        per watt right now (uses live specs so it adapts to presets). */
+  /* 6. Affinity Oracle: cheats — knows the exact physics model.
+        Upper bound. Uses computeAffinity() directly with the job's reqVec
+        to pick the best perf-per-watt column. Adapts live to spec changes. */
   class AffinityOraclePolicy {
     choose(state, actions, rng, ctx) {
       const cols = actions.filter((a) => a !== 'WAIT');
       if (!ctx || !ctx.proc) return { action: cols[0], mode: 'ORACLE' };
-      const aff = IMS.PROC_TYPES[ctx.proc.type].affinity;
       let best = cols[0], bestScore = -Infinity;
       for (const k of cols) {
         const s = IMS.RES_SPECS[k];
-        const score = (aff[k] || 0) * s.baseSpeed / s.activeW;
+        const score = IMS.computeAffinity(ctx.proc, k) * s.baseSpeed / s.activeW;
         if (score > bestScore) { bestScore = score; best = k; }
       }
       return { action: best, mode: 'ORACLE' };

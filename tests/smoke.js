@@ -76,10 +76,22 @@ if (rl.avgEff() <= rr.avgEff())
   fails.push('RL efficiency should exceed RR');
 if (rl.stats.violations > rr.stats.violations)
   fails.push(`RL violations (${rl.stats.violations}) should be <= RR (${rr.stats.violations})`);
-const expectBest = { COMPUTE: 'CPU', PARALLEL: 'GPU', IO: 'NVME' };
+const expectBest = { COMPUTE: 'CPU', PARALLEL: 'GPU', IO: 'NVME', INFER: 'GPU' };
 for (const [t, want] of Object.entries(expectBest)) {
   const best = IMS.RES_KEYS.reduce((a, b) => (m[t][a] >= m[t][b] ? a : b));
   if (best !== want) fails.push(`policy for ${t} should prefer ${want}, got ${best}`);
+}
+/* reality-gap informational notes — no hard-fail, but print if unexpected */
+const realityNotes = {
+  STREAM: { want: 'CPU',  note: 'CPU+network bound — sim has no network column' },
+  GRAPH:  { want: 'GPU',  note: 'NVMe 8GB buffer too small for graph working set; GPU thread-divergence not modeled' },
+  SECURE: { want: 'CPU',  note: 'sequential crypto — CPU enclave preferred' },
+};
+for (const [t, { want, note }] of Object.entries(realityNotes)) {
+  if (!m[t]) continue;
+  const best = IMS.RES_KEYS.reduce((a, b) => (m[t][a] >= m[t][b] ? a : b));
+  const marker = best === want ? '✓' : `→ got ${best}`;
+  console.log(`  note: ${t.padEnd(6)} expects ${want} ${marker}  (${note})`);
 }
 
 /* ============================================================

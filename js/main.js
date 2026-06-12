@@ -57,7 +57,15 @@
     const t = IMS.PROC_TYPES[type];
     for (let i = 0; i < 6; i++) {
       const work = t.work[0] + Math.random() * (t.work[1] - t.work[0]);
-      const proto = { type, work, secure: t.secure };
+      const rv = t.reqVec;
+      const reqVec = {
+        cpu:         rv.cpu[0]         + Math.random() * (rv.cpu[1]         - rv.cpu[0]),
+        gpu:         rv.gpu[0]         + Math.random() * (rv.gpu[1]         - rv.gpu[0]),
+        io:          rv.io[0]          + Math.random() * (rv.io[1]          - rv.io[0]),
+        parallelism: rv.parallelism[0] + Math.random() * (rv.parallelism[1] - rv.parallelism[0]),
+        mem:         rv.mem[0]         + Math.random() * (rv.mem[1]         - rv.mem[0]),
+      };
+      const proto = { type, work, secure: t.secure, reqVec };
       for (const a of algoEngines) {
         a.engine.enqueue({ ...proto, pid: a.key === 'rl' ? injectPid : 0 }, true);
       }
