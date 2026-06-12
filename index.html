@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMS — Intelligent Meta Scheduler · RL Resource Allocation</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ============ HEADER: identity + live KPIs + run controls ============ -->
+  <header>
+    <div class="brand">
+      <h1>IMS<span>·</span>Intelligent Meta Scheduler</h1>
+      <p>Reinforcement-learning middleware allocating processes across a 4×3 hardware grid</p>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><label>Throughput</label><b id="kpi-thr">0.00</b><small>proc/s</small></div>
+      <div class="kpi"><label>vs Round-Robin</label><b id="kpi-adv">+0%</b><small>work completed</small></div>
+      <div class="kpi"><label>Avg Latency</label><b id="kpi-lat">0.0s</b><small>queue→done</small></div>
+      <div class="kpi"><label>Efficiency</label><b id="kpi-eff">0%</b><small>affinity·power</small></div>
+      <div class="kpi"><label>Sec. Violations</label><b id="kpi-sec">0</b><small>enclave misses</small></div>
+      <div class="kpi"><label>Avg Reward</label><b id="kpi-rew">0.00</b><small>EMA</small></div>
+      <div class="kpi"><label>Exploration ε</label><b id="kpi-eps">1.00</b><small>decaying</small></div>
+    </div>
+    <div class="run-controls">
+      <button id="btn-pause" class="btn">⏸ Pause</button>
+      <button id="btn-reset-learning" class="btn btn-ghost" title="Wipe the Q-table and watch the agent relearn">⟲ Reset Learning</button>
+      <button id="btn-reset-all" class="btn btn-ghost">⟲ Reset All</button>
+    </div>
+  </header>
+
+  <!-- ============ MAIN: generator/queue → RL brain → resource grid ============ -->
+  <main>
+    <!-- STAGE 1: processes arrive and queue in the classic scheduler -->
+    <section class="col-left">
+      <div class="card">
+        <h2>① Process Generator</h2>
+        <div class="ctl-row"><label><input type="checkbox" id="ctl-auto" /> auto arrivals</label></div>
+        <div class="ctl-row"><label>arrival rate <output id="ctl-arrival-val"></output></label>
+          <input type="range" id="ctl-arrival" min="0.02" max="0.6" step="0.02" /></div>
+        <div id="inject-btns" class="inject-grid"></div>
+      </div>
+
+      <div class="card">
+        <h2>② Scheduler Queue <span class="count" id="queue-count">0</span></h2>
+        <div id="queue" class="queue"></div>
+      </div>
+
+      <div class="card">
+        <h2>⚙ Functional Parameters</h2>
+        <h3>Q-learning</h3>
+        <div class="ctl-row"><label>α learning rate <output id="ctl-alpha-val"></output></label>
+          <input type="range" id="ctl-alpha" min="0.01" max="0.5" step="0.01" /></div>
+        <div class="ctl-row"><label>γ discount <output id="ctl-gamma-val"></output></label>
+          <input type="range" id="ctl-gamma" min="0" max="0.99" step="0.01" /></div>
+        <h3>Reward objective weights</h3>
+        <div class="ctl-row"><label>throughput <output id="ctl-wthr-val"></output></label>
+          <input type="range" id="ctl-wthr" min="0" max="2" step="0.1" /></div>
+        <div class="ctl-row"><label>efficiency <output id="ctl-weff-val"></output></label>
+          <input type="range" id="ctl-weff" min="0" max="2" step="0.1" /></div>
+        <div class="ctl-row"><label>security <output id="ctl-wsec-val"></output></label>
+          <input type="range" id="ctl-wsec" min="0" max="2" step="0.1" /></div>
+        <div class="ctl-row"><label>hw health <output id="ctl-whw-val"></output></label>
+          <input type="range" id="ctl-whw" min="0" max="2" step="0.1" /></div>
+        <h3>Simulation</h3>
+        <div class="ctl-row"><label>sim speed <output id="ctl-speed-val"></output></label>
+          <input type="range" id="ctl-speed" min="1" max="20" step="1" /></div>
+      </div>
+    </section>
+
+    <!-- STAGE 2: the RL middleware making the placement decision -->
+    <section class="col-mid">
+      <div class="card brain" id="brain-card">
+        <h2>③ Intelligent Meta Scheduler <span class="mode-badge" id="brain-mode">—</span></h2>
+        <p class="brain-sub">Q-learning agent · observes (process type, grid load) · picks a resource column</p>
+        <div class="brain-state" id="brain-state">waiting for first dispatch…</div>
+
+        <h3>Q-values for current state</h3>
+        <div id="q-bars"></div>
+
+        <h3>Last reward breakdown <b id="rwd-total">–</b></h3>
+        <div id="reward-bars"></div>
+
+        <h3>Exploration ε <span class="eps-val" id="eps-val">1.000</span></h3>
+        <div class="eps-track"><i id="eps-bar"></i></div>
+        <div class="agent-meta">
+          <span>decisions <b id="agent-decisions">0</b></span>
+          <span>Q-entries <b id="agent-states">0</b></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Decision Log</h2>
+        <div id="decision-log" class="log"></div>
+      </div>
+    </section>
+
+    <!-- STAGE 3: the 4x3 hardware grid executing the work -->
+    <section class="col-right">
+      <div class="card grid-card">
+        <h2>④ Resource Grid <small>4 rows × 3 columns · row 0 = secure enclave ⛨</small></h2>
+        <div class="grid-heads" id="grid-heads"></div>
+        <div class="resource-grid" id="resource-grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER: learning evidence ============ -->
+  <footer>
+    <div class="card chart-card">
+      <h2>Latency — RL vs baseline <small>same arrivals, different scheduler · lower is better</small></h2>
+      <canvas id="chart-lat"></canvas>
+    </div>
+    <div class="card chart-card">
+      <h2>Reward signal <small>what the agent optimises</small></h2>
+      <canvas id="chart-rew"></canvas>
+    </div>
+    <div class="card chart-card">
+      <h2>Learned Policy <small>avg Q per process type × column · ★ = preferred</small></h2>
+      <div id="heatmap" class="heatmap"></div>
+    </div>
+  </footer>
+
+  <div class="legend">
+    <span class="lg-title">Process types:</span>
+    <span id="legend-types"></span>
+    <span class="lg-item">⛨ <em>secure enclave unit</em></span>
+    <span class="lg-item"><i class="lg-dot" style="background:#ff5566"></i><em>thermal throttling</em></span>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/agent.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
