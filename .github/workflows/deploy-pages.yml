@@ -10,7 +10,6 @@ on:
   push:
     branches:
       - main
-      - claude/opus-4-8-model-5v8791
   workflow_dispatch:
 
 permissions:
