@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMS Policies & Protocols — IMS Technologies, Inc.</title>
+  <link rel="stylesheet" href="css/policies.css" />
+</head>
+<body>
+
+  <!-- ===== GLOBAL NAV (injected by nav.js) ===== -->
+  <div id="global-nav"></div>
+
+  <div class="pol-wrap">
+
+    <!-- ===== HERO ===== -->
+    <div class="pol-hero">
+      <div class="pol-hero-eyebrow">IMS Technologies, Inc. · Technical Documentation</div>
+      <h1>Policies &amp; <span>Protocols</span></h1>
+      <p class="pol-hero-tagline">"The RL-native scheduling layer for heterogeneous HPC"</p>
+      <div class="pol-hero-meta">
+        <span class="pol-badge pol-badge-blue">v1.0 Draft</span>
+        <span class="pol-badge pol-badge-green">&#x2713; NATS-HPC 1.0</span>
+        <span class="pol-badge pol-badge-amber">&#x26A0; SHP-MSL 1.0</span>
+        <span class="pol-badge pol-badge-purple">APCF 1.0</span>
+        <span class="pol-badge pol-badge-red">Review Cycle: Annual</span>
+      </div>
+    </div>
+
+    <!-- ===== CSS TAB SYSTEM ===== -->
+    <!-- Radio inputs must precede tab-bar and tab-content as siblings -->
+    <input class="tab-inputs" type="radio" id="tab1" name="tabs" checked />
+    <input class="tab-inputs" type="radio" id="tab2" name="tabs" />
+    <input class="tab-inputs" type="radio" id="tab3" name="tabs" />
+    <input class="tab-inputs" type="radio" id="tab4" name="tabs" />
+
+    <div class="tab-bar">
+      <label class="tab-label" for="tab1">
+        <span class="tab-num">1</span>
+        &#x1F680; Product &amp; Vision
+      </label>
+      <label class="tab-label" for="tab2">
+        <span class="tab-num">2</span>
+        &#x1F4E1; NATS-HPC 1.0
+      </label>
+      <label class="tab-label" for="tab3">
+        <span class="tab-num">3</span>
+        &#x1F512; SHP-MSL 1.0
+      </label>
+      <label class="tab-label" for="tab4">
+        <span class="tab-num">4</span>
+        &#x2696;&#xFE0F; APCF 1.0
+      </label>
+    </div>
+
+    <div class="tab-content">
+
+      <!-- ================================================================
+           TAB 1: PRODUCT & VISION
+           ================================================================ -->
+      <div id="panel-1" class="tab-panel">
+
+        <div class="stat-grid">
+          <div class="stat-card stat-blue">
+            <span class="stat-val">$47B</span>
+            <span class="stat-lbl">HPC Infra TAM (2024)</span>
+            <span class="stat-sub">Global addressable market</span>
+          </div>
+          <div class="stat-card stat-green">
+            <span class="stat-val">500+</span>
+            <span class="stat-lbl">Top Supercomputers</span>
+            <span class="stat-sub">Primary beachhead market</span>
+          </div>
+          <div class="stat-card stat-amber">
+            <span class="stat-val">&lt;5ms</span>
+            <span class="stat-lbl">Dispatch Latency</span>
+            <span class="stat-sub">p99 scheduling decision</span>
+          </div>
+          <div class="stat-card stat-purple">
+            <span class="stat-val">$470M</span>
+            <span class="stat-lbl">ARR at 1% TAM</span>
+            <span class="stat-sub">Long-term scale target</span>
+          </div>
+        </div>
+
+        <!-- THE PROBLEM -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x26A0;&#xFE0F;</span> The Problem</h2>
+        <p>
+          Static kernel schedulers — SLURM in HPC clusters, the Kubernetes default scheduler in cloud
+          environments — were designed for an era of homogeneous hardware and predictable workloads.
+          They lack the feedback loops necessary to respond to live hardware signals.
+        </p>
+        <div class="pol-callout danger-callout">
+          <div class="callout-title">&#x26D4; Silent Failure Modes in Production HPC</div>
+          <p>GPU XID errors accumulate silently until throughput collapses. NVMe wear crosses the 85%
+          cliff and write amplification explodes. NUMA topology mismatches cause 30–40% memory
+          bandwidth loss on multi-socket systems. Rack PDU budget overruns trigger emergency throttles
+          at the BMC level, stalling entire job queues — with zero visibility from the scheduler.</p>
+        </div>
+        <p>
+          No existing scheduling tool learns from these hardware signals autonomously. Operators rely
+          on manual runbooks, reactive alerts, and post-mortem analysis. The cost is measured in
+          CPU-hours wasted, GPU clusters underutilised, and SLA breaches that compound silently across
+          multi-week HPC campaigns.
+        </p>
+
+        <div class="pol-section-sub">Root Causes of Scheduler Blindness</div>
+        <ul>
+          <li><strong>No hardware feedback loop</strong> — SLURM and k8s schedulers read node metadata at job submission, not real-time hardware telemetry.</li>
+          <li><strong>No online learning</strong> — Affinity tables and priority weights are hand-coded and require redeployment to update.</li>
+          <li><strong>No cross-signal correlation</strong> — Power, thermal, GPU health, and storage wear signals exist in separate monitoring silos with no unified dispatch logic.</li>
+          <li><strong>No security-aware placement</strong> — Standard schedulers have no concept of hardware attestation or TEE placement requirements at the job level.</li>
+        </ul>
+
+        <!-- THE PRODUCT -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x26A1;</span> The Product</h2>
+        <p>
+          IMS (Intelligent Meta Scheduler) is a meta-scheduler middleware layer that sits between the
+          OS kernel and the existing job dispatcher. It operates as a transparent proxy — consuming
+          hardware telemetry, computing optimal placement decisions via online reinforcement learning,
+          and either advising or directly actuating the underlying scheduler.
+        </p>
+        <p>
+          IMS observes real hardware telemetry directly from the hardware abstraction layer: RAPL
+          MSR registers for per-socket and per-core power, NVML for GPU health scores and error
+          counts, SMART attributes for NVMe wear percentage and write amplification, CPU MSR
+          P-state registers for frequency scaling state, and IPMI/Redfish endpoints for rack-level
+          power budget and thermal zone data.
+        </p>
+        <div class="pol-callout good-callout">
+          <div class="callout-title">&#x2705; Key Architectural Principle</div>
+          <p>IMS requires <strong>no kernel patches</strong>. It instruments hardware via existing
+          OS interfaces (perf_event, sysfs, NVML library, IPMI userspace tools) and attaches to
+          the scheduler via a lightweight gRPC dispatch advisory protocol. Deployment takes
+          minutes, not maintenance windows.</p>
+        </div>
+
+        <div class="pol-section-sub">RL Scheduling Model</div>
+        <p>
+          The core scheduler is a tabular Q-learning agent with state factored over hardware health
+          vectors. The reward function is a weighted composition of: throughput per watt (primary),
+          job completion latency (secondary), security constraint satisfaction (hard constraint,
+          zero violation tolerance), and hardware wear minimisation (regulariser term).
+        </p>
+        <p>
+          Affinity is computed algebraically from the resource demand vector of each process type
+          against the current capability vector of each schedulable unit — no hand-coded affinity
+          tables, no manual tuning. The agent adapts to live hardware events (GPU degradation, NVMe
+          wear cliff, thermal emergency) without redeployment, via the exploration-exploitation
+          balance governed by the decaying epsilon parameter.
+        </p>
+
+        <!-- STARTUP TIERS -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F3D7;&#xFE0F;</span> Startup Tiers</h2>
+        <div class="tier-grid">
+          <div class="tier-card tier-1">
+            <div class="tier-name">IMS Lite</div>
+            <div class="tier-sub">Tier 1 &mdash; Open Source</div>
+            <ul>
+              <li>Observability agent (RAPL, NVML, SMART, IPMI)</li>
+              <li>Schedule advisor — recommendations only, no actuation</li>
+              <li>OpenTelemetry exporter (OTLP)</li>
+              <li>Local Q-table, single node</li>
+              <li>Apache 2.0 licensed</li>
+              <li>Community Discord + GitHub Issues</li>
+            </ul>
+          </div>
+          <div class="tier-card tier-2">
+            <div class="tier-name">IMS Pro</div>
+            <div class="tier-sub">Tier 2 &mdash; SaaS</div>
+            <ul>
+              <li>Full actuation layer — live dispatch decisions</li>
+              <li>Cloud-hosted RL training pipeline</li>
+              <li>Multi-tenant API with per-tenant isolation</li>
+              <li>Cross-cluster model transfer (federated)</li>
+              <li>Dashboard + alerting SaaS portal</li>
+              <li>99.9% SLA, dedicated support SLA</li>
+            </ul>
+          </div>
+          <div class="tier-card tier-3">
+            <div class="tier-name">IMS Enterprise</div>
+            <div class="tier-sub">Tier 3 &mdash; On-Premises</div>
+            <ul>
+              <li>Air-gapped deployment option</li>
+              <li>FedRAMP Moderate compliance package</li>
+              <li>NVIDIA DGX / HGX native integration</li>
+              <li>HSM-backed key management</li>
+              <li>Dedicated engineering support + SLAs</li>
+              <li>Custom RL reward function tuning</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- MARKET SIZING -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4CA;</span> Market Sizing</h2>
+        <div class="pol-info-card">
+          <h4>Total Addressable Market</h4>
+          <p>
+            The global HPC infrastructure market was valued at <strong>$47B in 2024</strong> and
+            is growing at ~8% CAGR driven by AI/ML workloads, sovereign AI lab investments, and
+            hyperscaler burst compute buildouts. IMS targets the intersection of the HPC scheduler
+            software layer and the AI infrastructure observability market — a segment with no
+            RL-native incumbent.
+          </p>
+          <p>
+            Primary beachhead: the <strong>TOP500 supercomputers</strong>, sovereign AI labs
+            (national labs in US, EU, and allied nations), and hyperscaler burst-compute teams
+            operating heterogeneous GPU/CPU clusters at scale. Secondary market: enterprise HPC
+            (financial modelling, genomics, automotive simulation).
+          </p>
+          <p>
+            At <strong>1% TAM capture</strong> with a per-cluster ACV of $180K–$2.4M
+            (tiered by cluster size), the model supports $470M ARR at scale. The near-term
+            milestone is $5M ARR from 12 reference customers across Tier 2 and Tier 3 by
+            end of Year 3.
+          </p>
+        </div>
+
+        <!-- COMPETITIVE MOAT -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F6E1;&#xFE0F;</span> Competitive Moat</h2>
+        <p>
+          Existing competitors fall into two categories: static optimisers (SLURM plugins, k8s
+          node affinity rules) that require manual tuning, and observability dashboards (Grafana,
+          Prometheus stacks) that present data but make no decisions. No existing tool combines
+          real-time hardware telemetry ingestion with autonomous online RL-based dispatch actuation.
+        </p>
+        <div class="pol-callout">
+          <div class="callout-title">&#x26A1; Physics-Aware RL — The Core Moat</div>
+          <p>IMS computes job-to-unit affinity from the resource demand vector of the process
+          (power draw, memory bandwidth, I/O intensity, security class) against the real-time
+          capability vector of each schedulable unit. This is physics-derived, not table-driven.
+          The agent learns the affinity function from hardware feedback — it does not need to
+          be told that a GPU with 12 XID errors in the last hour should be deprioritised for
+          FP32 matrix workloads. It discovers this from the reward signal.</p>
+        </div>
+        <p>
+          The model weights are transferable across clusters of similar hardware generation,
+          enabling a federated learning flywheel: the more clusters run IMS, the better the
+          shared base model, creating a data network effect that widens the moat over time.
+        </p>
+
+        <!-- INTEGRATION PATH -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F50C;</span> Integration Path</h2>
+        <div class="pol-table-wrap">
+          <table class="pol-table">
+            <thead>
+              <tr>
+                <th>Interface</th>
+                <th>Signal Provided</th>
+                <th>Platform</th>
+                <th>Kernel Patch Required</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">RAPL MSR</td>
+                <td>Per-socket &amp; per-core power draw (Watts)</td>
+                <td>Intel Haswell+ / AMD Zen 3+</td>
+                <td class="dim">No — <code>/sys/class/powercap</code></td>
+              </tr>
+              <tr>
+                <td class="mono">NVML</td>
+                <td>GPU health score, XID error count, memory ECC, utilisation</td>
+                <td>NVIDIA Volta+</td>
+                <td class="dim">No — NVIDIA driver userspace lib</td>
+              </tr>
+              <tr>
+                <td class="mono">SMART</td>
+                <td>NVMe wear %, write amplification, bad block count</td>
+                <td>All NVMe SSDs</td>
+                <td class="dim">No — <code>nvme-cli</code> / <code>smartmontools</code></td>
+              </tr>
+              <tr>
+                <td class="mono">IPMI / Redfish</td>
+                <td>Rack PDU budget, BMC thermal zones, PSU state</td>
+                <td>Any IPMI 2.0 compatible BMC</td>
+                <td class="dim">No — ipmitool / Redfish REST</td>
+              </tr>
+              <tr>
+                <td class="mono">perf_event</td>
+                <td>Memory pressure, cache miss rate, CPU stall cycles</td>
+                <td>Linux 4.1+</td>
+                <td class="dim">No — perf_event_open syscall</td>
+              </tr>
+              <tr>
+                <td class="mono">OpenTelemetry</td>
+                <td>Metrics/traces/logs export to any OTLP-compatible backend</td>
+                <td>Any OTLP collector</td>
+                <td class="dim">No — standard OTLP exporter</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="doc-meta">
+          <div class="meta-left">
+            IMS Technologies, Inc. · Product &amp; Vision Document<br>
+            Internal classification: Public Draft · Version 0.9.1
+          </div>
+          <div class="meta-right">
+            Reviewed: 2025-Q4<br>
+            Next review: 2026-Q4
+          </div>
+        </div>
+
+      </div><!-- /panel-1 -->
+
+
+      <!-- ================================================================
+           TAB 2: NATS-HPC 1.0
+           ================================================================ -->
+      <div id="panel-2" class="tab-panel">
+
+        <div class="pol-callout">
+          <div class="callout-title">&#x1F4C4; Document Reference</div>
+          <p>
+            <strong>National AI Telemetry Standard for HPC — Version 1.0 (Draft)</strong><br>
+            Recommendation of standardisation principles for AI telemetry and self-healing
+            frameworks within the national OS ecosystem.<br>
+            Status: Draft for Public Comment &nbsp;·&nbsp; Classification: Unclassified
+          </p>
+        </div>
+
+        <!-- RATIONALE -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4CB;</span> Rationale</h2>
+        <p>
+          Current HPC deployments instrument their hardware using a patchwork of vendor-specific
+          APIs, custom Prometheus exporters, and site-local schemas. This fragmentation has
+          three critical consequences for AI-driven infrastructure management:
+        </p>
+        <ul>
+          <li><strong>Model non-transferability</strong> — RL models trained at one national lab
+              cannot be applied at another because signal schemas, sampling rates, and retention
+              policies are incompatible.</li>
+          <li><strong>Federated training barrier</strong> — Federated learning across multiple
+              sites requires a common data representation. Without a standard, each federation
+              attempt requires costly custom ETL pipelines.</li>
+          <li><strong>Audit and compliance gaps</strong> — Fragmented telemetry makes it
+              impossible to produce standardised audit evidence for supply chain, security, or
+              regulatory purposes.</li>
+        </ul>
+        <p>
+          NATS-HPC 1.0 defines a minimal standard telemetry schema and self-healing trigger
+          taxonomy to enable cross-site RL model transfer, federated training, and interoperable
+          audit trails across participating national labs and sovereign AI infrastructure.
+        </p>
+
+        <!-- TELEMETRY DATA MODEL -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4E1;</span> Telemetry Data Model</h2>
+        <p>
+          All compliant IMS deployments must emit the following mandatory telemetry signals at
+          the specified minimum sampling rate. Additional signals are permitted; removal of
+          mandatory signals breaks NATS-HPC 1.0 compliance.
+        </p>
+        <div class="pol-table-wrap">
+          <table class="pol-table">
+            <thead>
+              <tr>
+                <th>Signal Name</th>
+                <th>Source API</th>
+                <th>Min Sampling Rate</th>
+                <th>Retention Tier</th>
+                <th>Mandatory</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>CPU Power</strong></td>
+                <td class="mono">RAPL-MSR</td>
+                <td class="mono">100 ms</td>
+                <td><span class="pol-badge pol-badge-red" style="font-size:10px">Hot · 30d</span></td>
+                <td><span class="pol-badge pol-badge-green" style="font-size:10px">Yes</span></td>
+              </tr>
+              <tr>
+                <td><strong>GPU Health Score</strong></td>
+                <td class="mono">NVML</td>
+                <td class="mono">500 ms</td>
+                <td><span class="pol-badge pol-badge-red" style="font-size:10px">Hot · 30d</span></td>
+                <td><span class="pol-badge pol-badge-green" style="font-size:10px">Yes</span></td>
+              </tr>
+              <tr>
+                <td><strong>NVMe Wear %</strong></td>
+                <td class="mono">SMART</td>
+                <td class="mono">5 s</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Warm · 90d</span></td>
+                <td><span class="pol-badge pol-badge-green" style="font-size:10px">Yes</span></td>
+              </tr>
+              <tr>
+                <td><strong>Memory Pressure</strong></td>
+                <td class="mono">perf_event</td>
+                <td class="mono">100 ms</td>
+                <td><span class="pol-badge pol-badge-red" style="font-size:10px">Hot · 30d</span></td>
+                <td><span class="pol-badge pol-badge-green" style="font-size:10px">Yes</span></td>
+              </tr>
+              <tr>
+                <td><strong>Thermal Zone</strong></td>
+                <td class="mono">sysfs</td>
+                <td class="mono">1 s</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Warm · 90d</span></td>
+                <td><span class="pol-badge pol-badge-green" style="font-size:10px">Yes</span></td>
+              </tr>
+              <tr>
+                <td><strong>Job Dispatch Event</strong></td>
+                <td class="mono">Scheduler API</td>
+                <td class="mono">per-event</td>
+                <td><span class="pol-badge pol-badge-blue" style="font-size:10px">Cold · 1y</span></td>
+                <td><span class="pol-badge pol-badge-green" style="font-size:10px">Yes</span></td>
+              </tr>
+              <tr>
+                <td><strong>Reward Signal</strong></td>
+                <td class="mono">IMS Agent</td>
+                <td class="mono">per-completion</td>
+                <td><span class="pol-badge pol-badge-blue" style="font-size:10px">Cold · 1y</span></td>
+                <td><span class="pol-badge pol-badge-green" style="font-size:10px">Yes</span></td>
+              </tr>
+              <tr>
+                <td><strong>Rack PDU Draw</strong></td>
+                <td class="mono">IPMI / Redfish</td>
+                <td class="mono">5 s</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Warm · 90d</span></td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Recommended</span></td>
+              </tr>
+              <tr>
+                <td><strong>Network Congestion</strong></td>
+                <td class="mono">InfiniBand / roce_stat</td>
+                <td class="mono">1 s</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Warm · 90d</span></td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Recommended</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- SELF-HEALING -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F9EC;</span> Self-Healing Trigger Levels</h2>
+        <p>
+          NATS-HPC 1.0 defines a standardised taxonomy of automated self-healing responses.
+          All trigger conditions must be evaluated in real time by the IMS agent. Automated
+          responses may be suppressed by operator policy but must be logged as "suppressed
+          response" events for audit purposes.
+        </p>
+        <div class="pol-table-wrap">
+          <table class="pol-table">
+            <thead>
+              <tr>
+                <th>Trigger Name</th>
+                <th>Condition</th>
+                <th>Severity</th>
+                <th>Automated Response</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>GPU Degraded</strong></td>
+                <td class="mono">NVML error count &gt;10/h</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">High</span></td>
+                <td>Reroute PARALLEL workloads to CPU; boost exploration epsilon to relearn placement</td>
+              </tr>
+              <tr>
+                <td><strong>NVMe Wear Cliff</strong></td>
+                <td class="mono">SMART wear % &gt;85%</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">High</span></td>
+                <td>Throttle I/O-heavy dispatch to affected device; alert operator; flag for scheduled replacement</td>
+              </tr>
+              <tr>
+                <td><strong>Thermal Emergency</strong></td>
+                <td class="mono">Any zone &gt;90°C</td>
+                <td><span class="pol-badge pol-badge-red" style="font-size:10px">Critical</span></td>
+                <td>Hard throttle on affected socket/GPU; drain active queue; prevent new dispatch until temp &lt;80°C</td>
+              </tr>
+              <tr>
+                <td><strong>Rack PDU Overload</strong></td>
+                <td class="mono">Draw &gt;90% of PDU budget</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">High</span></td>
+                <td>Proportional throttle across all active units on rack; defer new jobs to adjacent rack</td>
+              </tr>
+              <tr>
+                <td><strong>NUMA Imbalance</strong></td>
+                <td class="mono">Cross-NUMA job rate &gt;60%</td>
+                <td><span class="pol-badge pol-badge-blue" style="font-size:10px">Medium</span></td>
+                <td>Rebalance queue priorities to prefer NUMA-local units; log corrective action</td>
+              </tr>
+              <tr>
+                <td><strong>GPU XID Cascade</strong></td>
+                <td class="mono">XID 79 or XID 94 event</td>
+                <td><span class="pol-badge pol-badge-red" style="font-size:10px">Critical</span></td>
+                <td>Immediate evacuation of active jobs on device; quarantine unit; operator alert with evidence bundle</td>
+              </tr>
+              <tr>
+                <td><strong>Memory ECC Spike</strong></td>
+                <td class="mono">Correctable ECC &gt;1000/h</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">High</span></td>
+                <td>Deprioritise affected DIMM slot for memory-intensive jobs; schedule diagnostic scrub</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- OPENTELEMETRY -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4CA;</span> OpenTelemetry Integration</h2>
+        <p>
+          IMS exports all telemetry signals in OTLP (OpenTelemetry Protocol) format. This makes
+          IMS-instrumented clusters compatible with any OTLP-capable observability backend:
+          Grafana Tempo, Jaeger, Honeycomb, Datadog, or self-hosted OpenTelemetry Collector pipelines.
+        </p>
+        <div class="pol-callout">
+          <div class="callout-title">&#x1F4E6; OTLP Export Specification</div>
+          <p><strong>Metrics</strong> — Gauge instruments for all continuous signals (power, temperature, utilisation). Counter instruments for event counts (XID errors, dispatch events). Histogram for latency distributions (dispatch decision time, job completion time).</p>
+          <p style="margin-top:8px"><strong>Traces</strong> — Every dispatch decision is wrapped in an OTLP trace span. Span attributes include: process type, chosen action, Q-values for all actions, hardware state vector at decision time, reward at completion (added retroactively via span update).</p>
+          <p style="margin-top:8px"><strong>Logs</strong> — Structured JSON logs with reward breakdown per job completion. Compliant with OpenTelemetry Log Data Model. Emitted to OTLP log exporter or stdout (for capture by cluster log aggregator).</p>
+        </div>
+        <p>
+          For sites that cannot expose OTLP endpoints externally, IMS supports a local Prometheus
+          scrape endpoint at <code>/metrics</code> (port 9090 by default) as a fallback. The
+          OpenTelemetry Collector can bridge between Prometheus scrape and OTLP push models.
+        </p>
+
+        <!-- RETENTION -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4BE;</span> Retention Policy</h2>
+        <div class="stat-grid">
+          <div class="stat-card stat-red">
+            <span class="stat-val">30d</span>
+            <span class="stat-lbl">Hot Tier</span>
+            <span class="stat-sub">NVMe SSD · full resolution</span>
+          </div>
+          <div class="stat-card stat-amber">
+            <span class="stat-val">90d</span>
+            <span class="stat-lbl">Warm Tier</span>
+            <span class="stat-sub">Object store · 10x downsampled</span>
+          </div>
+          <div class="stat-card stat-blue">
+            <span class="stat-val">1y</span>
+            <span class="stat-lbl">Cold Tier</span>
+            <span class="stat-sub">Tape / Glacier · event log only</span>
+          </div>
+        </div>
+        <p>
+          Hot tier data is retained at full sampling resolution. Warm tier applies a 10× downsampling
+          to continuous signals but retains all event-based records (dispatch events, self-healing
+          triggers, reward signals) at full fidelity. Cold tier retains event-based audit records
+          only — continuous telemetry is not retained beyond the warm tier window. All transitions
+          are governed by IMS Retention Manager and are configurable per-site within the bounds
+          defined above.
+        </p>
+
+        <div class="doc-meta">
+          <div class="meta-left">
+            NATS-HPC 1.0 · National AI Telemetry Standard for HPC<br>
+            Draft for Public Comment · Version 1.0-rc1 · 2025-Q4
+          </div>
+          <div class="meta-right">
+            Maintained by: IMS Technologies, Inc.<br>
+            Next review: 2026-Q4
+          </div>
+        </div>
+
+      </div><!-- /panel-2 -->
+
+
+      <!-- ================================================================
+           TAB 3: SHP-MSL 1.0
+           ================================================================ -->
+      <div id="panel-3" class="tab-panel">
+
+        <div class="pol-callout danger-callout">
+          <div class="callout-title">&#x1F512; Document Reference</div>
+          <p>
+            <strong>Security Hardening Protocol for Meta-Scheduler Layer — Version 1.0</strong><br>
+            Establishment of security hardening protocols for the meta-scheduler layer to ensure
+            secure multi-tenant operations in high-density compute environments.<br>
+            Classification: Controlled Unclassified Information (CUI) — Distribution: Authorised Personnel Only
+          </p>
+        </div>
+
+        <!-- THREAT MODEL -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F3AF;</span> Threat Model</h2>
+        <p>
+          The IMS threat model is scoped to the meta-scheduler layer as a high-value target in
+          multi-tenant HPC environments. The following threat categories are considered in scope:
+        </p>
+        <div class="threat-grid">
+          <div class="threat-card sev-critical">
+            <div class="threat-name">Tenant Isolation Breach</div>
+            <div class="threat-desc">
+              A tenant's secure workload is scheduled on a compute unit shared with or adjacent
+              to an untrusted co-resident job. Includes both CPU and GPU co-location threats.
+            </div>
+            <div class="threat-sev">Severity: Critical</div>
+          </div>
+          <div class="threat-card sev-critical">
+            <div class="threat-name">Model Poisoning</div>
+            <div class="threat-desc">
+              An adversary injects malicious reward signals or manipulates telemetry to bias
+              the RL model toward insecure or degraded placement decisions over time.
+            </div>
+            <div class="threat-sev">Severity: Critical</div>
+          </div>
+          <div class="threat-card sev-high">
+            <div class="threat-name">Supply Chain Compromise</div>
+            <div class="threat-desc">
+              The IMS scheduler binary, dependencies, or container image is compromised
+              pre-deployment via a compromised build pipeline or upstream dependency.
+            </div>
+            <div class="threat-sev">Severity: High</div>
+          </div>
+          <div class="threat-card sev-high">
+            <div class="threat-name">Side-Channel Attack</div>
+            <div class="threat-desc">
+              A co-resident job infers sensitive data from a secure enclave job via shared
+              hardware resources: shared LLC cache timing, DRAM row-hammer, or power
+              consumption patterns observable via RAPL.
+            </div>
+            <div class="threat-sev">Severity: High</div>
+          </div>
+        </div>
+        <p>
+          Out-of-scope threats for SHP-MSL 1.0: network-layer attacks (handled by the
+          cluster network security policy), physical access attacks (handled by data
+          centre physical security controls), and application-layer vulnerabilities within
+          tenant workloads themselves.
+        </p>
+
+        <!-- ZERO TRUST -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F6E1;&#xFE0F;</span> Zero Trust Architecture</h2>
+        <p>
+          IMS implements Zero Trust principles as defined in <strong>NIST SP 800-207</strong>.
+          The scheduler is not an implicit trust boundary — every dispatch decision is treated
+          as a security event and requires attestation evidence before execution.
+        </p>
+        <div class="pol-callout">
+          <div class="callout-title">&#x1F4DC; Zero Trust Dispatch Invariants</div>
+          <pre>FOR EVERY dispatch decision:
+  1. Workload security class MUST be verified from job manifest (signed)
+  2. Target unit TEE availability MUST be confirmed via hardware attestation
+  3. Cross-tenant visibility on target unit MUST be zero (verified by isolation policy engine)
+  4. Dispatch event MUST be signed with HSM key and appended to immutable audit log
+  5. Reward signal computation MUST occur within TEE (no plaintext reward leakage)</pre>
+        </div>
+        <p>
+          Secure workloads (security class ≥ 2) require hardware-attested TEE placement.
+          The IMS scheduler queries the attestation service before issuing a placement decision
+          for any secure-class job. Unattested placement attempts are blocked, logged as
+          security violations, and trigger an immediate operator alert.
+        </p>
+
+        <!-- HARDWARE ATTESTATION -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F50F;</span> Hardware Attestation Requirements</h2>
+        <div class="pol-table-wrap">
+          <table class="pol-table">
+            <thead>
+              <tr>
+                <th>Technology</th>
+                <th>Platform</th>
+                <th>Minimum Version</th>
+                <th>Use Case in IMS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Intel TDX</strong></td>
+                <td>Intel Sapphire Rapids+</td>
+                <td>TDX Module 1.5</td>
+                <td>CPU enclave jobs requiring memory encryption + remote attestation</td>
+              </tr>
+              <tr>
+                <td><strong>AMD SEV-SNP</strong></td>
+                <td>AMD EPYC Genoa+</td>
+                <td>EPYC 9004 series</td>
+                <td>VM-level tenant isolation with hardware-enforced memory separation</td>
+              </tr>
+              <tr>
+                <td><strong>NVIDIA Confidential Computing</strong></td>
+                <td>NVIDIA H100 / H200</td>
+                <td>NVIDIA Driver 525.60.13+</td>
+                <td>GPU secure inference workloads requiring attestable GPU memory isolation</td>
+              </tr>
+              <tr>
+                <td><strong>ARM CCA</strong></td>
+                <td>ARM v9-A platforms</td>
+                <td>RMM 0.4+</td>
+                <td>Edge/embedded IMS deployments requiring Realm isolation</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Attestation reports are cached for a maximum of <strong>60 seconds</strong>. Cached
+          reports are invalidated immediately on receipt of any security-relevant hardware event
+          (XID error, ECC spike, unexpected power state change). For air-gapped deployments,
+          a local attestation verification service is provided as part of the IMS Enterprise package.
+        </p>
+
+        <!-- SLSA SUPPLY CHAIN -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4E6;</span> SLSA Supply Chain Controls</h2>
+        <div class="pol-callout good-callout">
+          <div class="callout-title">&#x2705; SLSA Level 3 Compliance</div>
+          <p>The IMS scheduler binary is built at <strong>SLSA Level 3</strong>. This means:
+          the build environment is isolated and non-persistent; the build process is defined
+          as code in a signed configuration file; provenance is generated by the build system
+          (not the developer); and the provenance is cryptographically signed and verifiable
+          by any party with access to the public key.</p>
+        </div>
+        <ul>
+          <li><strong>Signed SBOM</strong> — A Software Bill of Materials in SPDX 2.3 format is attached to every release, signed with the IMS release key (Sigstore Cosign).</li>
+          <li><strong>Reproducible builds</strong> — IMS uses Nix as the build system. Any party with the Nix flake can reproduce the exact binary from source, bit-for-bit.</li>
+          <li><strong>Policy-as-code</strong> — Scheduler security policies are expressed in OPA (Open Policy Agent) Rego. Policies are versioned, tested, and reviewed via the same PR process as source code.</li>
+          <li><strong>Dependency pinning</strong> — All third-party dependencies are pinned by content hash (not semver range). Dependency updates require explicit approval via policy review.</li>
+          <li><strong>Container image signing</strong> — OCI container images are signed with Cosign and verified at deploy time by the cluster admission controller.</li>
+        </ul>
+
+        <!-- MULTI-TENANT ISOLATION RULES -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4CB;</span> Multi-Tenant Isolation Rules</h2>
+        <ol class="rule-list">
+          <li>Row 0 (the enclave row) is a reserved hardware partition dedicated to secure processes only. No general-purpose, low-security, or untrusted workload may be dispatched to Row 0 under any circumstance, including queue overflow conditions.</li>
+          <li>Every job-to-unit mapping is logged with a cryptographic proof of placement: the dispatch event record includes the job ID, target unit ID, timestamp, attestation report hash, and the HSM-signed authorisation token.</li>
+          <li>The reward signal for RL training is computed inside a Trusted Execution Environment (TEE). Raw reward components are never exposed in plaintext to any process outside the TEE boundary.</li>
+          <li>RL model weights are stored in an encrypted volume (AES-256-GCM). Encryption keys are managed by an HSM (Hardware Security Module) and are never written to disk in plaintext. Key access requires two-party authorisation for Enterprise deployments.</li>
+          <li>Any detected violation — a secure-class job dispatched to a non-enclave unit, an attested unit failing re-attestation, or a placement event without a valid HSM signature — triggers: (a) immediate job termination, (b) unit quarantine, (c) P1 operator alert with full evidence bundle, (d) automatic entry in the SIEM event stream.</li>
+        </ol>
+
+        <!-- AUDIT TRAIL -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4DD;</span> Audit Trail</h2>
+        <p>
+          Every dispatch event emitted by IMS is signed with the cluster's HSM key and
+          appended to an immutable, append-only audit log. The log is WORM-compliant
+          (Write Once, Read Many) and cannot be modified or deleted by any user, including
+          cluster administrators, for the duration of the retention period.
+        </p>
+        <div class="two-col">
+          <div class="pol-info-card">
+            <h4>Audit Event Fields (per dispatch)</h4>
+            <ul>
+              <li>Event timestamp (nanosecond precision, NTP-synchronised)</li>
+              <li>Job ID + tenant ID (anonymised in shared-log mode)</li>
+              <li>Target unit ID + attestation report hash</li>
+              <li>Security class of dispatched job</li>
+              <li>RL action taken + Q-values for all alternatives</li>
+              <li>Hardware state vector snapshot at dispatch time</li>
+              <li>HSM signature over the above fields (Ed25519)</li>
+            </ul>
+          </div>
+          <div class="pol-info-card">
+            <h4>Audit Export &amp; SIEM Integration</h4>
+            <ul>
+              <li>Syslog (RFC 5424) export for legacy SIEM compatibility</li>
+              <li>CEF (Common Event Format) for Splunk / ArcSight</li>
+              <li>OCSF (Open Cybersecurity Schema Framework) for modern SIEM</li>
+              <li>Direct Kafka topic publish for stream-processing pipelines</li>
+              <li>Tamper-evidence: SHA-3 hash chain across sequential log entries</li>
+              <li>Quarterly log integrity attestation report available on demand</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="doc-meta">
+          <div class="meta-left">
+            SHP-MSL 1.0 · Security Hardening Protocol for Meta-Scheduler Layer<br>
+            Controlled Unclassified Information · Version 1.0-rc1 · 2025-Q4
+          </div>
+          <div class="meta-right">
+            Security contact: security@ims.tech<br>
+            Next review: 2026-Q4
+          </div>
+        </div>
+
+      </div><!-- /panel-3 -->
+
+
+      <!-- ================================================================
+           TAB 4: APCF 1.0
+           ================================================================ -->
+      <div id="panel-4" class="tab-panel">
+
+        <div class="pol-callout">
+          <div class="callout-title">&#x2696;&#xFE0F; Document Reference</div>
+          <p>
+            <strong>Advisory on Compliance Frameworks for AI-Based Performance Optimisation — Version 1.0</strong><br>
+            Compliance frameworks for AI-based performance optimisation and automated diagnostic
+            routines within the IMS meta-scheduler product.<br>
+            Classification: Public · Applicable to: IMS Pro and IMS Enterprise customers
+          </p>
+        </div>
+
+        <!-- APPLICABLE FRAMEWORKS -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4DC;</span> Applicable Frameworks</h2>
+        <div class="badge-row">
+          <span class="pol-badge pol-badge-blue">NIST AI RMF 1.0</span>
+          <span class="pol-badge pol-badge-purple">EU AI Act (2024)</span>
+          <span class="pol-badge pol-badge-green">FedRAMP Moderate</span>
+          <span class="pol-badge pol-badge-amber">ISO/IEC 42001</span>
+          <span class="pol-badge pol-badge-red">NIST SP 800-53 Rev 5</span>
+        </div>
+        <p>
+          IMS Technologies, Inc. maintains compliance documentation for the frameworks listed
+          above. FedRAMP authorisation is in progress for IMS Enterprise; a P-ATO (Provisional
+          Authority to Operate) is targeted for 2026-Q2. ISO/IEC 42001 certification audit is
+          scheduled for 2026-Q1. EU AI Act compliance is self-assessed under the CISA AI Safety
+          guidance and reviewed annually.
+        </p>
+
+        <!-- SLA DEFINITIONS -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4C8;</span> SLA Definitions</h2>
+        <div class="pol-table-wrap">
+          <table class="pol-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Target SLA</th>
+                <th>Measurement Window</th>
+                <th>Applies To</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Scheduler Latency (dispatch decision)</strong></td>
+                <td class="mono">&lt;5ms p99</td>
+                <td>Rolling 1 hour</td>
+                <td>IMS Pro, Enterprise</td>
+              </tr>
+              <tr>
+                <td><strong>Job Throughput vs Oracle Baseline</strong></td>
+                <td class="mono">&gt;85% of oracle</td>
+                <td>Rolling 24 hours</td>
+                <td>IMS Pro, Enterprise</td>
+              </tr>
+              <tr>
+                <td><strong>Security Violation Rate</strong></td>
+                <td class="mono">0 violations</td>
+                <td>Per-tenant per-day</td>
+                <td>IMS Enterprise</td>
+              </tr>
+              <tr>
+                <td><strong>RL Convergence (new hardware)</strong></td>
+                <td class="mono">≥80% of oracle within 4h</td>
+                <td>Post-hardware-event</td>
+                <td>IMS Pro, Enterprise</td>
+              </tr>
+              <tr>
+                <td><strong>Telemetry Availability</strong></td>
+                <td class="mono">&gt;99.5%</td>
+                <td>Monthly</td>
+                <td>All tiers</td>
+              </tr>
+              <tr>
+                <td><strong>Dashboard / API Uptime</strong></td>
+                <td class="mono">&gt;99.9%</td>
+                <td>Monthly</td>
+                <td>IMS Pro, Enterprise</td>
+              </tr>
+              <tr>
+                <td><strong>Audit Log Availability</strong></td>
+                <td class="mono">100% (immutable)</td>
+                <td>Per retention tier</td>
+                <td>IMS Enterprise</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          SLA credits are applied per the IMS Service Agreement for Pro and Enterprise tiers.
+          IMS Lite does not carry an SLA; availability and performance are best-effort only.
+        </p>
+
+        <!-- EU AI ACT -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F1EA;&#x1F1FA;</span> EU AI Act Classification</h2>
+        <div class="pol-callout warn-callout">
+          <div class="callout-title">&#x26A0; Classification: Limited Risk AI — Article 52</div>
+          <p>
+            IMS is classified as <strong>"Limited Risk AI"</strong> under the EU AI Act (Regulation
+            (EU) 2024/1689). It does not qualify as High Risk AI under Annex III because it does not
+            operate in a safety-critical domain (medical devices, critical infrastructure control,
+            biometric ID) and human operators retain override capability at all times.
+          </p>
+        </div>
+        <div class="pol-section-sub">Transparency Obligations (Article 52)</div>
+        <p>
+          Users must be <strong>clearly informed</strong> when the IMS RL engine overrides a
+          user-specified placement preference. Every such override is logged, surfaced in the IMS
+          dashboard with a plain-English explanation, and optionally delivered via webhook or
+          notification channel. The user retains the ability to lock any job to a specific unit,
+          which the scheduler will honour as a hard constraint (overriding the RL recommendation).
+        </p>
+        <div class="pol-section-sub">Explainability Requirement (Article 13)</div>
+        <p>
+          Every RL dispatch decision must include a human-readable explanation. This is implemented
+          via the <strong>IMS Narrator Module</strong>, which generates structured explanations
+          at decision time:
+        </p>
+        <div class="pol-callout good-callout">
+          <div class="callout-title">&#x1F4AC; Example Narrator Output (Article 13 Compliance)</div>
+          <pre>DISPATCH: job_id=proc-4421 | type=MEMORY_INTENSIVE | unit=cpu-3
+REASON: Unit cpu-3 selected. GPU units deprioritised (NVML error count=14/h, above threshold).
+        CPU-3 NUMA-local to job's memory allocation. Power headroom 42W available.
+        Q-values: [cpu-0: 0.61, cpu-1: 0.58, cpu-2: 0.59, cpu-3: 0.74, gpu-0: 0.31, gpu-1: 0.28]
+        Security class: STANDARD — no TEE placement required.
+REWARD @ completion: throughput=+0.82, latency=-0.12, security=+0.00, wear=-0.03 | total=+0.67</pre>
+        </div>
+
+        <!-- NIST AI RMF -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F5FA;&#xFE0F;</span> NIST AI RMF Mapping</h2>
+        <div class="map-grid">
+          <div class="map-card">
+            <div class="map-title">&#x1F4CB; GOVERN</div>
+            <ul>
+              <li>AI Policy: this document (APCF 1.0)</li>
+              <li>Risk tolerance: defined in SLA table above</li>
+              <li>Accountability: IMS CTO is AI system owner</li>
+              <li>Annual review cycle mandated</li>
+            </ul>
+          </div>
+          <div class="map-card">
+            <div class="map-title">&#x1F5FA;&#xFE0F; MAP</div>
+            <ul>
+              <li>Context: HPC multi-tenant scheduling</li>
+              <li>Stakeholders: cluster operators, tenants, national labs</li>
+              <li>Harm categories: tenant breach, performance SLA miss</li>
+              <li>Benefit: throughput ×, efficiency ×, hardware life ↑</li>
+            </ul>
+          </div>
+          <div class="map-card">
+            <div class="map-title">&#x1F4CF; MEASURE</div>
+            <ul>
+              <li>KPIs: throughput vs oracle, dispatch latency p99</li>
+              <li>Security: violation count (target: 0/tenant/day)</li>
+              <li>Drift: Q-table distribution shift detector</li>
+              <li>Telemetry: reward EMA trend monitor</li>
+            </ul>
+          </div>
+          <div class="map-card">
+            <div class="map-title">&#x1F6E0;&#xFE0F; MANAGE</div>
+            <ul>
+              <li>Self-healing triggers (NATS-HPC 1.0)</li>
+              <li>Human override: operator hard-lock any job</li>
+              <li>Incident response: SHP-MSL 1.0 escalation path</li>
+              <li>Model rollback: previous checkpoint in 60s</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- FEDRAMP -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F1FA;&#x1F1F8;</span> FedRAMP Controls</h2>
+        <p>
+          IMS Enterprise targets <strong>FedRAMP Moderate</strong> authorisation. The following
+          NIST SP 800-53 Rev 5 controls are directly addressed by IMS architecture and policy:
+        </p>
+        <div class="pol-table-wrap">
+          <table class="pol-table">
+            <thead>
+              <tr>
+                <th>Control ID</th>
+                <th>Control Name</th>
+                <th>IMS Implementation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">AC-2</td>
+                <td>Account Management</td>
+                <td>Per-tenant RBAC enforced by IMS API gateway; all accounts audited quarterly</td>
+              </tr>
+              <tr>
+                <td class="mono">AU-2</td>
+                <td>Event Logging</td>
+                <td>All dispatch events, security violations, and self-healing actions logged to immutable WORM log</td>
+              </tr>
+              <tr>
+                <td class="mono">CM-7</td>
+                <td>Least Functionality</td>
+                <td>IMS binary has no network listeners except gRPC advisory API; all unused kernel interfaces disabled</td>
+              </tr>
+              <tr>
+                <td class="mono">IR-4</td>
+                <td>Incident Handling</td>
+                <td>Automated P1 alert + evidence bundle on security violation; 15-minute operator response SLA</td>
+              </tr>
+              <tr>
+                <td class="mono">SI-3</td>
+                <td>Malicious Code Protection</td>
+                <td>SLSA L3 build, signed SBOM, Cosign image signing, admission controller verification at deploy</td>
+              </tr>
+              <tr>
+                <td class="mono">SC-28</td>
+                <td>Protection at Rest</td>
+                <td>RL model weights AES-256-GCM encrypted; keys in HSM; telemetry data encrypted at rest on all storage tiers</td>
+              </tr>
+              <tr>
+                <td class="mono">SC-8</td>
+                <td>Transmission Confidentiality</td>
+                <td>All IMS inter-component communication over mTLS 1.3; certificate rotation automated via cert-manager</td>
+              </tr>
+              <tr>
+                <td class="mono">IA-3</td>
+                <td>Device Identification and Authentication</td>
+                <td>Each compute unit identified via hardware attestation report; attestation required before dispatch</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- EXPLAINABILITY REQUIREMENTS -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F4A1;</span> Explainability Requirements</h2>
+        <p>
+          To satisfy <strong>Article 13 (EU AI Act)</strong> transparency obligations and the
+          NIST AI RMF MEASURE function, every RL dispatch decision must emit the following
+          structured fields:
+        </p>
+        <ol class="rule-list">
+          <li><strong>Process type</strong> — The workload class of the dispatched job (e.g., GPU_INTENSIVE, MEMORY_INTENSIVE, IO_BOUND, SECURE_ENCLAVE). Derived from the process type registry.</li>
+          <li><strong>Resource demand vector</strong> — The multi-dimensional resource requirement of the job at dispatch time: power budget, memory bandwidth, I/O intensity, security class, estimated runtime.</li>
+          <li><strong>Q-values for all actions</strong> — The full Q-value vector across all available schedulable units at decision time, enabling retrospective analysis of why a specific unit was selected over alternatives.</li>
+          <li><strong>Chosen action and rationale</strong> — The selected unit, whether the choice was greedy (exploitation) or random (exploration), and the primary hardware signal that differentiated the selected unit.</li>
+          <li><strong>Reward components at completion</strong> — The decomposed reward signal: throughput component, latency penalty, security constraint satisfaction score, hardware wear cost. Enables per-component accountability for model decisions.</li>
+        </ol>
+
+        <!-- AUTOMATED DIAGNOSTICS -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F9EC;</span> Automated Diagnostics</h2>
+        <p>
+          IMS operates a self-monitoring diagnostics loop that continuously evaluates the health
+          of the RL agent itself — not just the hardware it manages:
+        </p>
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="tl-label">Reward EMA Trend Monitor</div>
+            <div class="tl-body">
+              The exponential moving average of the reward signal is monitored for sustained
+              decline. A declining EMA slope (&lt; −0.05 over 500 steps) indicates an
+              unresolved hardware event or a policy that has diverged from the optimal. Triggers:
+              epsilon boost (force re-exploration) and operator advisory alert.
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="tl-label">Policy Drift Detector</div>
+            <div class="tl-body">
+              The distribution of Q-values across the action space is monitored via KL divergence
+              from a reference checkpoint. Significant divergence (KL &gt; 0.3) indicates the policy
+              has shifted substantially — either due to hardware environment change (expected)
+              or adversarial reward manipulation (unexpected). Triggers MEASURE alert and optional
+              automatic rollback to last known-good checkpoint.
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="tl-label">Telemetry Anomaly Detection</div>
+            <div class="tl-body">
+              An isolation-forest anomaly detector runs over the incoming telemetry stream.
+              Anomalous signal values (e.g., power draw suddenly reporting 0W on an active socket,
+              GPU health jumping from 0.3 to 0.95 instantaneously) are flagged as potential
+              telemetry tampering events, triggering audit log entries and telemetry quarantine.
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="tl-label">Security Constraint Satisfaction Monitor</div>
+            <div class="tl-body">
+              The security violation rate (secure jobs dispatched to non-enclave units) is monitored
+              in real time. Any non-zero rate triggers immediate P1 escalation per SHP-MSL 1.0
+              Section 5. This monitor cannot be disabled or overridden by operator configuration.
+            </div>
+          </div>
+        </div>
+
+        <!-- VERSION AND REVIEW -->
+        <h2 class="pol-section-h"><span class="sec-icon">&#x1F501;</span> Version and Review Cycle</h2>
+        <div class="pol-table-wrap">
+          <table class="pol-table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Version</th>
+                <th>Status</th>
+                <th>Next Review</th>
+                <th>Review Trigger</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>NATS-HPC 1.0</strong></td>
+                <td class="mono">1.0-rc1</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Draft</span></td>
+                <td>2026-Q4</td>
+                <td>Annual or major hardware generation change</td>
+              </tr>
+              <tr>
+                <td><strong>SHP-MSL 1.0</strong></td>
+                <td class="mono">1.0-rc1</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Draft</span></td>
+                <td>2026-Q4</td>
+                <td>Annual or CVE/threat model update</td>
+              </tr>
+              <tr>
+                <td><strong>APCF 1.0</strong></td>
+                <td class="mono">1.0-rc1</td>
+                <td><span class="pol-badge pol-badge-amber" style="font-size:10px">Draft</span></td>
+                <td>2026-Q4</td>
+                <td>Annual or regulatory framework update</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          All three documents are reviewed together in a single annual review cycle, scheduled
+          in Q4 of each year. An out-of-cycle review is triggered automatically by: (1) any
+          major hardware generation change affecting the telemetry data model, (2) publication
+          of a material update to any of the referenced external frameworks (NIST AI RMF, EU AI
+          Act implementing acts, FedRAMP baseline updates), or (3) a security incident classified
+          as Severity 1 under the IMS incident response policy.
+        </p>
+        <p>
+          Review outputs are published to the IMS documentation portal and, for NATS-HPC 1.0,
+          submitted for comment to the National Labs Technology Standards Working Group.
+        </p>
+
+        <div class="doc-meta">
+          <div class="meta-left">
+            APCF 1.0 · Advisory on Compliance Frameworks for AI-Based Performance Optimisation<br>
+            Public · Version 1.0-rc1 · 2025-Q4 · IMS Technologies, Inc.
+          </div>
+          <div class="meta-right">
+            Legal: legal@ims.tech<br>
+            Compliance: compliance@ims.tech
+          </div>
+        </div>
+
+      </div><!-- /panel-4 -->
+
+    </div><!-- /tab-content -->
+
+  </div><!-- /pol-wrap -->
+
+  <script src="js/nav.js"></script>
+</body>
+</html>
