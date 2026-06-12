@@ -141,16 +141,33 @@ input[type='checkbox'] { accent-color: var(--accent); }
 .log-neg { color: var(--bad); font-weight: 600; }
 .log-sys { color: var(--accent); }
 
+/* ---------- preset hardware conditions ---------- */
+.preset-wrap { margin-bottom: 10px; }
+.preset-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn-preset {
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 11px;
+}
+.btn-preset:hover { border-color: var(--accent); }
+.preset-active { background: color-mix(in srgb, var(--accent) 22%, var(--panel-2)); border-color: var(--accent); font-weight: 600; }
+.preset-desc { font-size: 10px; color: var(--dim); margin-top: 5px; min-height: 13px; }
+
 /* ---------- resource grid (4 rows x 3 columns) ---------- */
 .grid-heads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
 .col-head {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
 }
+.col-title { display: flex; align-items: center; gap: 8px; }
 .col-icon { font-size: 20px; }
 .col-name { font-weight: 700; font-size: 13px; }
 .col-sub { font-size: 9px; color: var(--dim); }
-.col-spec { font-size: 9px; color: var(--dim); margin-left: auto; text-align: right; }
+.col-spec { font-size: 9px; color: var(--accent); margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
+
+.col-tweaks { margin-top: 7px; border-top: 1px solid var(--line); padding-top: 6px; }
+.tweak-row { display: grid; grid-template-columns: 34px 1fr 44px; gap: 6px; align-items: center; margin-bottom: 2px; }
+.tweak-row label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); }
+.tweak-row input[type='range'] { height: 3px; }
+.tweak-row output { font-size: 9px; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
 
 .resource-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .cell {

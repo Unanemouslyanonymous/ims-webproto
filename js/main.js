@@ -21,6 +21,20 @@
   IMS.UI.buildResourceGrid();
   IMS.UI.buildBrain();
   IMS.UI.buildLegend();
+  IMS.UI.buildPresetBar((key) => {
+    const p = IMS.PRESETS.find((x) => x.key === key);
+    IMS.applyPreset(key);
+    IMS.UI.syncSpecControls();
+    IMS.UI.setActivePreset(key);
+    // environment changed under the agent's feet → re-explore.
+    // This is how an adaptive scheduler reacts to a fleet event.
+    agent.eps = Math.max(agent.eps, 0.35);
+    IMS.UI.pushLog(
+      `<span class="log-sys">⚠ hardware condition: <b>${p.name}</b> — ${p.desc}. ` +
+      `ε boosted to ${agent.eps.toFixed(2)} for re-exploration</span>`
+    );
+  });
+  IMS.UI.setActivePreset('nominal');
   IMS.UI.buildInjectButtons((type) => {
     // identical burst into both engines keeps the comparison fair
     const t = IMS.PROC_TYPES[type];

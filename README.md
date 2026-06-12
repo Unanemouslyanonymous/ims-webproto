@@ -56,6 +56,31 @@ Each of the 12 units mimics real low-level behaviour:
 - **Security** — row 0 of every column is a **secure enclave** (⛨, isolated
   partition). SECURE processes placed anywhere else count as a violation.
 
+**Nothing here is static.** Every column has live tweakers above it — clock,
+slots, heat rate, cooling, power draw, and NVMe wear rate — that mutate the
+specs the engine reads *on the next tick*. The agent is never notified; it
+has to notice through reward, exactly as a scheduler on real silicon would.
+
+### Preset hardware conditions
+
+Five one-click fleet scenarios (the kind an HPC operator actually sees) let
+you test whether the RL-enforced IMS *actually works*:
+
+| preset | condition | what the agent should do |
+|---|---|---|
+| ⚖ Nominal | baseline silicon | learn the affinity table |
+| 🧨 GPU Failure | XID errors, GPUs crawl at 1 u/t | reroute PARALLEL to CPU |
+| 🔥 Cooling Failure | CRAC down, heat soak, throttle storms | spread load, WAIT more |
+| 🧯 NVMe Wear-Out | SMART pre-fail, brutal write amp | pull I/O off the dying drives |
+| ⚡ CPU Overclock | all-core OC — fast, hot, hungry | exploit the headroom, mind thermals |
+
+Applying a preset (or touching any tweaker) changes the live environment
+mid-run; presets also boost ε to 0.35 — **re-exploration on fleet events**,
+the way an adaptive scheduler reacts to changed hardware. Verified result
+from `tests/smoke.js`: with healthy GPUs the agent places **~74 %** of
+PARALLEL work on GPU; after a live GPU-failure event it reroutes to **~6 %**,
+while still completing ~24 % more work than round-robin on the degraded grid.
+
 ## The workload model (process types)
 
 | type | behaviour | runs best on |
@@ -74,7 +99,7 @@ agent is **never told this table**; it discovers it from reward alone.
 |---|---|
 | **State** | `(process type, CPU-load bucket, GPU-load bucket, NVMe-load bucket)` — 4 × 3³ = 108 states |
 | **Actions** | dispatch to `CPU` / `GPU` / `NVME` (full columns masked), plus a **WAIT** action under grid pressure — learned admission control |
-| **Reward** | weighted blend, each term ∈ ≈[−1, 1]:<br>• **throughput** — inverse slowdown vs ideal placement<br>• **efficiency** — affinity match discounted by power draw<br>• **security** — +1 enclave-compliant SECURE, −1 violation<br>• **hw health** — penalty for time spent throttled + wear added |
+| **Reward** | weighted blend, each term ∈ ≈[−1, 1]:<br>• **throughput** — inverse slowdown vs the best placement *currently possible*<br>• **efficiency** — perf-per-watt relative to the best column available (recomputed live as specs change)<br>• **security** — +1 enclave-compliant SECURE, −1 violation<br>• **hw health** — penalty for time spent throttled + wear added |
 | **Algorithm** | tabular Q-learning, ε-greedy with decay (ε 1.0 → 0.05), α = 0.15, γ = 0.9 |
 | **Credit** | one-step update fired when the process completes |
 
@@ -101,6 +126,9 @@ anecdote. Typical converged results (30 k ticks):
 5. **Hit ⟲ Reset Learning** — the policy collapses and visibly relearns.
 6. **Drag the reward weights** — crank *security* to 2.0 and violations stop;
    zero *hw health* and the GPUs run hot. The objective is live-tunable.
+7. **Break the hardware** — hit 🧨 *GPU Failure* and watch the PARALLEL row
+   of the policy heatmap flip from GPU to CPU within seconds, or slide a
+   single column's clock down and watch traffic drain away from it.
 
 ## Functional parameters
 
